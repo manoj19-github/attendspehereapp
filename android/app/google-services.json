@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "57384540395",
+    "project_id": "asrlm-9f9ae",
+    "storage_bucket": "asrlm-9f9ae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:57384540395:android:12164863eae944793ec6ae",
+        "android_client_info": {
+          "package_name": "com.asrlm_gig_worker_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrZnPtgciaa7aF0mB3tJJ6YYSVNXX3c14"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
