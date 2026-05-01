@@ -109,6 +109,7 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.logoutText}>🚪 Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+      <View style={{height:50}}/>
     </View>
   );
 };

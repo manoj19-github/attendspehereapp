@@ -10,6 +10,7 @@ import { isWithinWorkingHours } from '../utils/time.utils';
 
 import { locationApi } from './location.service';
 import { queueLocationPing } from './sync.service';
+import { useAttendanceStore } from '../store/useAttendanceStore';
 
 const sleep = (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time));
 
@@ -42,7 +43,7 @@ class BackgroundLocationService {
   }
 
   private veryIntensiveTask = async (taskDataArguments: any) => {
-    const { delay } = taskDataArguments;
+    console.log('taskDataArguments: ', taskDataArguments);
     
     await new Promise(async (resolve) => {
       while (BackgroundService.isRunning()) {
@@ -76,13 +77,16 @@ class BackgroundLocationService {
           // Send to server
           try {
             const response = await locationApi.ping({
+              
               lat: location.latitude,
               lng: location.longitude,
               
             });
+            console.log('response:  84 ', response);
 
             if (response.data?.data) {
               const data = response.data.data;
+              useAttendanceStore.getState().setWorkingHours(data.totalHours);
               useLocationStore.getState().updateLocation(
                 location.latitude,
                 location.longitude,
@@ -102,6 +106,7 @@ class BackgroundLocationService {
 
             useOfflineStore.getState().setOnlineStatus(true);
           } catch (error: any) {
+            console.log('error: 109 ', error);
             if (error.message === 'OFFLINE_REQUEST_QUEUED') {
               console.log('Location ping queued for offline sync');
             } else {

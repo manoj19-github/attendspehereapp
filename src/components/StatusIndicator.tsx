@@ -1,88 +1,228 @@
-// src/components/dashboard/StatusIndicator.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { MapPin } from 'lucide-react-native';
-import { Colors } from '../constants/colors';
+import { MapPin, Clock, Briefcase, Navigation } from 'lucide-react-native';
+import { Colors, Spacing, BorderRadius, Shadows } from '../constants/colors';
 import { useLocationStore } from '../store/useLocationStore';
-import { formatDistance } from '../utils/distance.utils';
-
+import { isWithinWorkingHours } from '../utils/time.utils';
+import { useAuthStore } from '../store/useAuthStore';
 
 const StatusIndicator: React.FC = () => {
-  const { status, distance, isWorkingHours } = useLocationStore();
-  const isInside = status === 'in_office_area';
+  const { status, distance ,isSameLocation,currentLocation} = useLocationStore();
+  console.log('currentLocation: ', currentLocation);
+  const OFFICE_RADIUS = useAuthStore((state) => state.officeSettings?.OFFICE_RADIUS);
+  const officeLocation = useLocationStore((state) => state.officeLocation);
+  console.log('officeLocation: ', officeLocation);
+  console.log('status: ', status);
+  console.log('distance: ', distance);
+  const isWorkingHours = isWithinWorkingHours();
+  const isInside = OFFICE_RADIUS  && distance <= OFFICE_RADIUS;
 
+
+  // Animation values
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
-    if (isInside) {
+    if (isInside && isWorkingHours) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.2, duration: 1000, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
         ])
       ).start();
     }
-  }, [isInside]);
+  }, [isInside, isWorkingHours]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: isInside ? Colors.successLighter : Colors.errorLight }]}>
-      <Animated.View style={[styles.iconContainer, { transform: [{ scale: pulseAnim }] }]}>
-        <MapPin size={24} color={isInside ? Colors.success : Colors.error} />
-      </Animated.View>
-      <View style={styles.textContainer}>
-        <Text style={[styles.status, { color: isInside ? Colors.success : Colors.error }]}>
-          {isInside ? 'Inside Office' : 'Outside Office'}
-        </Text>
-        <Text style={styles.distance}>{formatDistance(distance)} from office</Text>
-        {!isWorkingHours && (
-          <Text style={styles.offHours}>Outside working hours</Text>
-        )}
+  // 🌙 OFF-HOURS: Minimal compact badge
+  if (!isWorkingHours) {
+    return (
+      <View style={styles.offHoursContainer}>
+        <View style={[styles.offHoursBadge, { backgroundColor: Colors.darkBlue }]}>
+          <MapPin size={14} color={ "#fff" } />
+          <Text style={[styles.offHoursText, { color:"#fff" }]}>
+            { isSameLocation ? '📍 Inside Office' : isInside ? '✅ within office range' : '⚠️ Outside Office'}
+          </Text>
+        </View>
+        <Text style={styles.offHoursSubtext}>Working hours ended</Text>
       </View>
-      <View style={[styles.indicator, { backgroundColor: isInside ? Colors.success : Colors.error }]} />
-    </View>
+    );
+  }
+
+  // ☀️ WORKING HOURS: Full beautiful card
+  return (
+    <Animated.View
+      style={[
+        styles.container,
+        isInside ? styles.insideContainer : styles.outsideContainer,
+        { transform: [{ scale: isInside ? pulseAnim : 1 }] },
+      ]}
+    >
+      <View style={styles.contentRow}>
+        <View style={[styles.iconCircle, isInside ? styles.insideIcon : styles.outsideIcon]}>
+          {isInside ? (
+            <Briefcase size={28} color="#fff" />
+          ) : (
+            <Navigation size={28} color="#fff" />
+          )}
+        </View>
+
+        <View style={styles.textContainer}>
+          <Text style={[styles.statusTitle, isInside ? styles.insideText : styles.outsideText]}>
+            { isSameLocation ? '📍 Inside Office' : isInside ? '✅ within office range' : '⚠️ Outside Office'}
+          </Text>
+          <Text style={styles.distanceText}>
+            {isInside
+              ? `Within ${Math.round(distance)}m radius`
+              : `${Math.round(distance)}m away from office`}
+          </Text>
+        </View>
+
+        <View style={[styles.liveDot, isInside ? styles.liveDotInside : styles.liveDotOutside]}>
+          <View style={styles.dotInner} />
+        </View>
+      </View>
+
+      {isInside && (
+        <View style={styles.pulseBar}>
+          <View style={styles.pulseFill} />
+        </View>
+      )}
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  // Off-hours styles
+  offHoursContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    justifyContent: 'space-between',
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     backgroundColor: Colors.card,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
+  },
+  offHoursBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  offHoursText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  offHoursSubtext: {
+    fontSize: 12,
+    color: Colors.darkBlue,
+    fontWeight: '700',
+  },
+
+  // Working hours styles
+  container: {
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.sm,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    ...Shadows.md,
+    overflow: 'hidden',
+  },
+  insideContainer: {
+    backgroundColor: '#10B981',
+    borderWidth: 1,
+    borderColor: '#059669',
+  },
+  outsideContainer: {
+    backgroundColor: '#F59E0B',
+    borderWidth: 1,
+    borderColor: '#D97706',
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.full,
     justifyContent: 'center',
-    marginRight: 12,
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  insideIcon: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  outsideIcon: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   textContainer: {
     flex: 1,
   },
-  status: {
-    fontSize: 16,
-    fontWeight: '700',
+  statusTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 2,
   },
-  distance: {
+  insideText: {
+    textShadowColor: 'rgba(0,0,0,0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  outsideText: {
+    textShadowColor: 'rgba(0,0,0,0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  distanceText: {
     fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 2,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
   },
-  offHours: {
-    fontSize: 11,
-    color: Colors.warning,
-    marginTop: 2,
-    fontWeight: '500',
+  liveDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  indicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  liveDotInside: {
+    backgroundColor: '#fff',
+  },
+  liveDotOutside: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  dotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  pulseBar: {
+    marginTop: Spacing.md,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  pulseFill: {
+    width: '60%',
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderRadius: 2,
   },
 });
 

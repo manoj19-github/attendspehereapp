@@ -18,6 +18,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { authApi } from '../service/auth.service';
 import { getDeviceInfo } from '../utils/device.utils';
 import Toast from 'react-native-toast-message';
+import { useLocationStore } from '../store/useLocationStore';
 
 
 export const AuthScreen: React.FC = () => {
@@ -63,9 +64,13 @@ export const AuthScreen: React.FC = () => {
           fingerPrint: deviceInfo.fingerprint,
         });
 
-        const { user, accessToken, refreshToken } = response.data.data;
+        const { user, accessToken, refreshToken,officeSettings } = response.data.data;
         useAuthStore.getState().setUser(user);
         useAuthStore.getState().setTokens(accessToken, refreshToken);
+        useAuthStore.getState().setOfficeSettings(officeSettings);
+        if(officeSettings?.OFFICE_LAT && officeSettings?.OFFICE_LNG){
+          useLocationStore.getState().setOfficeLocation({lat:officeSettings?.OFFICE_LAT,lng:officeSettings?.OFFICE_LNG});
+        }
 
         // Register device after login
         // try {

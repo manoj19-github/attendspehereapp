@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { User } from '../types';
+import { OfficeSettings, User } from '../types';
 import { ASYNC_STORAGE_KEYS } from '../enviroments';
 
 interface AuthStore {
@@ -11,6 +11,7 @@ interface AuthStore {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  officeSettings: OfficeSettings | null;
   
   setAuth: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -19,6 +20,7 @@ interface AuthStore {
   setUser: (user:any) => Promise<void>;
   setTokens: (accessToken: string, refreshToken: string) => Promise<void>
   setAccessToken: (accessToken: string) => Promise<void>;
+  setOfficeSettings: (officeSettings: OfficeSettings) => void;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -27,6 +29,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   refreshToken: null,
   isAuthenticated: false,
   isLoading: true,
+  officeSettings: null,
+  setOfficeSettings: (officeSettings) => set({ officeSettings }),
   setAccessToken: async (accessToken) => {
     await AsyncStorage.setItem(ASYNC_STORAGE_KEYS.AUTH_TOKEN, accessToken);
     set({ accessToken,isAuthenticated:true });

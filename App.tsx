@@ -4,21 +4,18 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Toast from 'react-native-toast-message';
 import { useNetwork } from './src/hooks/useNetwork';
-import { AppNavigator } from './src/navigatons/AppNavigator';
+import  AppNavigator  from './src/navigatons/AppNavigator';
 
 
 LogBox.ignoreLogs(['Reanimated 2', 'NativeEventEmitter']);
 
-const AppContent: React.FC = () => {
-  useNetwork();
-  return <AppNavigator />;
-};
+
 
 const App: React.FC = () => {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#F0F7FF" />
-      <AppContent />
+    <AppNavigator />
       <Toast />
     </SafeAreaProvider>
   );

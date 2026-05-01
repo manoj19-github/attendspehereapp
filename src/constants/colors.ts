@@ -104,6 +104,7 @@ export const Colors = {
   // Gradient stops
   gradientStart: '#E8F0FE',
   gradientEnd: '#F0F4FA',
+  darkBlue:"#2B7FFF"
 };
 
 export const Gradients = {

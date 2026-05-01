@@ -9,7 +9,7 @@ import BackgroundActions from 'react-native-background-actions';
 import { useLocationStore } from '../store/useLocationStore';
 import { useOfflineStore } from '../store/useOfflineStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { BACKGROUND_TASK_NAME, LOCATION_POLLING_INTERVAL, OFFICE_LAT, OFFICE_LNG } from '../enviroments';
+import { BACKGROUND_TASK_NAME,  } from '../enviroments';
 
 import { isWithinWorkingHours } from './time.utils';
 import { locationApi } from '../service/location.service';
@@ -64,6 +64,7 @@ class LocationService {
   private pollingInterval: any | null = null;
 
   async requestLocationPermissions(): Promise<boolean> {
+    const officeSettings = useAuthStore.getState().officeSettings;
     try {
       if (Platform.OS === 'android') {
         const foreground = await PermissionsAndroid.request(
@@ -89,6 +90,7 @@ class LocationService {
   }
 
   async checkLocationPermissions(): Promise<boolean> {
+     const officeSettings = useAuthStore.getState().officeSettings;
     try {
       if (Platform.OS === 'android') {
         const foreground = await PermissionsAndroid.check(
@@ -108,12 +110,13 @@ class LocationService {
   }
 
   startPolling() {
+     const officeSettings = useAuthStore.getState().officeSettings;
     if (this.pollingInterval) return;
 
     useLocationStore.getState().startTracking();
     this.pollingInterval = setInterval(() => {
       this.sendLocationPing();
-    }, LOCATION_POLLING_INTERVAL);
+    }, officeSettings?.LOCATION_POLLING_INTERVAL);
 
     // Immediate first ping
     this.sendLocationPing();
@@ -162,9 +165,10 @@ private async sendLocationPing() {
     });
 
     const { latitude, longitude } = position.coords;
+     const officeSettings = useAuthStore.getState().officeSettings;
 
     // ✅ 4. Business logic
-    const distance = calculateDistance(latitude, longitude, OFFICE_LAT, OFFICE_LNG);
+    const distance = calculateDistance(latitude, longitude, officeSettings?.OFFICE_LAT??0, officeSettings?.OFFICE_LNG??0);
     const status = distance <= 100 ? 'in_office_area' : 'out_office_area';
     const isWorkingHours = isWithinWorkingHours();
 
@@ -210,6 +214,7 @@ private async sendLocationPing() {
 }
 
   async startBackgroundTracking() {
+    const officeSettings = useAuthStore.getState().officeSettings;
     const options = {
       taskName: BACKGROUND_TASK_NAME,
       taskTitle: 'AttendSphere Tracking',
@@ -221,7 +226,7 @@ private async sendLocationPing() {
       color: '#4A7DE4',
       linkingURI: 'attendsphere://',
       parameters: {
-        delay: LOCATION_POLLING_INTERVAL,
+        delay: officeSettings?.LOCATION_POLLING_INTERVAL??0,
       },
     };
 
@@ -245,7 +250,7 @@ private async sendLocationPing() {
     }
   };
 
-  private sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep = (ms: number) => new Promise((resolve:any) => setTimeout(resolve, ms));
 }
 
 export const locationService = new LocationService();

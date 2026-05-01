@@ -10,4 +10,6 @@ export const locationApi = {
 
   getHistory: (params?: { page?: number; limit?: number }) =>
     apiClient.get('/location/history', { params }),
+  manualCheckout: (data: { lat: number; lng: number }) =>
+    apiClient.post('/location/checkout', data),
 };

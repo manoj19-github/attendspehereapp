@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Colors, Shadows, BorderRadius, Spacing } from '../constants/colors';
-
 import { getCurrentPosition } from '../utils/location.utils';
+import { isWithinWorkingHours } from '../utils/time.utils'; // ✅ IMPORTED
+import { locationApi } from '../service/location.service'; // ✅ IMPORTED
 
 import AttendanceTimeline from '../components/AttendanceTimeline';
 import OfficeMapBanner from '../components/OfficeMapBanner';
@@ -31,32 +32,62 @@ export const DashboardScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const user = useAuthStore((state) => state.user);
+  const { user, officeSettings } = useAuthStore();
+  const { distance, currentLocation } = useLocationStore();
 
-  // ✅ FIX: Use optional chaining + default values to prevent crashes if store hasn't hydrated
   const status = useLocationStore((state) => state.status ?? null);
+  
   const firstCheckinDone = useLocationStore((state) => state.firstCheckinDone ?? false);
   const isTracking = useLocationStore((state) => state.isTracking ?? false);
 
   const { todayAttendance, setTodayAttendance } = useAttendanceStore();
   const isOnline = useOfflineStore((state) => state.isOnline ?? true);
 
-  useEffect(() => {
-    (async()=>{
-      try{
-      const position = await getCurrentPosition();
-      console.log('position: ', position);
-      }catch(error){
-        console.log("error occured",error);
+  // ✅ CHECKED-IN STATE: true if last event today is 'checkin'
+  const isCheckedIn = useMemo(() => {
+    if (!todayAttendance?.events?.length) return false;
+    const lastEvent = todayAttendance.events[todayAttendance.events.length - 1];
+    return lastEvent.event_type === 'checkin';
+  }, [todayAttendance]);
+
+  const isWorkingHours = useMemo(() => isWithinWorkingHours(), [officeSettings]);
+
+  // ✅ SHOW CHECKIN: no checkin yet + inside office
+  const showCheckinButton = useMemo(
+    () => !isCheckedIn && !firstCheckinDone && status === 'in_office_area',
+    [isCheckedIn, firstCheckinDone, status]
+  );
+
+  // ✅ SHOW CHECKOUT: currently checked in (covers working-hours-ended + manual)
+  const showCheckoutButton = useMemo(
+    () => isCheckedIn,
+    [isCheckedIn]
+  );
+
+  // ✅ URGENT CHECKOUT: working hours ended but still checked in
+  const isUrgentCheckout = useMemo(
+    () => isCheckedIn && !isWorkingHours,
+    [isCheckedIn, isWorkingHours]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log('useFocusEffect:   76');
+    (async () => {
+      try {
+        const position: any = await getCurrentPosition();
+        console.log('position:   76', position);
+        useLocationStore.getState().setCurrentLocation(position);
+      } catch (error) {
+        console.log('location error', error);
       }
     })();
-    // loadDashboardData();
-    // startBackgroundService();
-  }, []);
+    loadDashboardData();  
+    startBackgroundService();
+  }, []));
 
   const startBackgroundService = async () => {
     try {
-      // ✅ FIX: Guard against missing isServiceRunning method
       const isRunning =
         typeof backgroundLocationService.isServiceRunning === 'function'
           ? backgroundLocationService.isServiceRunning()
@@ -67,12 +98,12 @@ export const DashboardScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to start background service:', error);
-      // ✅ FIX: Don't let this crash the screen — swallow and continue
     }
   };
 
   const loadDashboardData = async () => {
     try {
+      setLoading(true);
       const response = await apiClient.get('/attendance/today');
       if (response.data?.data) {
         setTodayAttendance(response.data.data);
@@ -86,7 +117,6 @@ export const DashboardScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load dashboard:', error);
-      // ✅ FIX: Swallow API errors so screen still renders
     } finally {
       setLoading(false);
     }
@@ -98,46 +128,73 @@ export const DashboardScreen: React.FC = () => {
     setRefreshing(false);
   };
 
+  // ✅ MANUAL CHECK-IN
   const handleManualCheckin = async () => {
     try {
+      if (loading) return;
       setLoading(true);
-      const position = await getCurrentPosition();
-      
+      const position: any = await getCurrentPosition();
+      useLocationStore.getState().setCurrentLocation(position);
+
       const response = await apiClient.post('/location/checkin', {
         lat: position.latitude,
         lng: position.longitude,
       });
 
       if (response.data?.success) {
-        Alert.alert('Success', 'Check-in successful!');
+        Alert.alert('✅ Success', 'Check-in successful!');
         useLocationStore.getState().setFirstCheckinDone(true);
         await loadDashboardData();
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Check-in failed');
+      Alert.alert('❌ Error', error.response?.data?.message || 'Check-in failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const showCheckinButton = !firstCheckinDone && status === 'in_office_area';
+  // ✅ MANUAL CHECK-OUT (works inside OR outside office)
+  const handleManualCheckout = async () => {
+    try {
+      if (loading) return;
+      setLoading(true);
 
-  // ✅ FIX: Only show full-screen loader on very first load with no cached data
+      // Try to get current location for the record (optional)
+      let lat, lng;
+      try {
+        const position: any = await getCurrentPosition();
+        lat = position.latitude;
+        lng = position.longitude;
+        useLocationStore.getState().setCurrentLocation(position);
+      } catch {
+        // Location failed — allow checkout anyway (working hours ended, user left, GPS off, etc.)
+        lat = currentLocation?.latitude;
+        lng = currentLocation?.longitude;
+      }
+
+      const response = await locationApi.manualCheckout({ lat, lng });
+
+      if (response.data?.success) {
+        Alert.alert('✅ Checked Out', 'You have been checked out successfully.');
+        useLocationStore.getState().setFirstCheckinDone(false); // Reset for next day
+        await loadDashboardData();
+      }
+    } catch (error: any) {
+      console.log('error: ', error);
+      Alert.alert('❌ Error', error.response?.data?.message || 'Check-out failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading && !todayAttendance) {
-    return <LoadingSpinner fullScreen message="Loading your dashboard..." />;
+    return <LoadingSpinner fullScreen message="Please wait while we load your dashboard..." />;
   }
 
   return (
     <View style={styles.container}>
       <OfflineBanner />
-
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.header}>
+      <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
               Hello, {user?.fullName?.split(' ')[0] ?? 'User'} 👋
@@ -152,45 +209,68 @@ export const DashboardScreen: React.FC = () => {
           </View>
           <TouchableOpacity
             style={styles.settingsBtn}
+            disabled={loading}
             onPress={() => navigation.navigate('Settings')}
           >
             <Text style={styles.settingsIcon}>⚙️</Text>
           </TouchableOpacity>
         </View>
 
+
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
+        
         <StatusIndicator />
 
+        {/* ✅ CHECK-IN BUTTON */}
         {showCheckinButton && (
-          <TouchableOpacity style={styles.checkinBtn} onPress={handleManualCheckin}>
+          <TouchableOpacity
+            disabled={loading}
+            style={styles.checkinBtn}
+            onPress={handleManualCheckin}
+          >
             <Text style={styles.checkinBtnText}>✋ Tap to Check In</Text>
             <Text style={styles.checkinSubtext}>First check-in of the day required</Text>
           </TouchableOpacity>
         )}
 
-        <OfficeMapBanner distance={0} />
+        {/* ✅ CHECK-OUT BUTTON */}
+        {showCheckoutButton && (
+          <TouchableOpacity
+            disabled={loading}
+            style={[
+              styles.checkoutBtn,
+              isUrgentCheckout && styles.checkoutBtnUrgent,
+            ]}
+            onPress={handleManualCheckout}
+          >
+            <Text style={styles.checkoutBtnText}>
+              {isUrgentCheckout ? '⚠️ Check Out Now' : '🚪 Check Out'}
+            </Text>
+            <Text style={styles.checkoutSubtext}>
+              {isUrgentCheckout
+                ? 'Working hours ended — you are still checked in'
+                : 'Manual check-out'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <OfficeMapBanner
+          distance={distance}
+          userLat={currentLocation?.latitude}
+          userLng={currentLocation?.longitude}
+        />
 
         <WorkingHoursTimer />
 
-        
         <AttendanceTimeline />
+        <View style={{height:50}}/>
 
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('AttendanceHistory')}
-          >
-            <Text style={styles.actionIcon}>📋</Text>
-            <Text style={styles.actionText}>History</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('FullMap')}
-          >
-            <Text style={styles.actionIcon}>🗺️</Text>
-            <Text style={styles.actionText}>Full Map</Text>
-          </TouchableOpacity>
-        </View>
+        
       </ScrollView>
     </View>
   );
@@ -251,6 +331,32 @@ const styles = StyleSheet.create({
   },
   checkinSubtext: {
     color: Colors.primaryLighter,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  // ✅ NEW: Checkout button styles
+  checkoutBtn: {
+    backgroundColor: Colors.warning || '#F59E0B',
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    ...Shadows.md,
+  },
+  checkoutBtnUrgent: {
+    backgroundColor: Colors.error || '#EF4444',
+    borderWidth: 2,
+    borderColor: '#B91C1C',
+  },
+  checkoutBtnText: {
+    color: Colors.textInverse || '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  checkoutSubtext: {
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 12,
     marginTop: 4,
   },

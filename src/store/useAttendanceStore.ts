@@ -16,12 +16,23 @@ interface AttendanceStore {
   setHistory: (history: AttendanceEvent[]) => void;
   setLoading: (loading: boolean) => void;
   addEvent: (event: AttendanceEvent) => void;
+  setWorkingHours:(workingHours:number)=>void;
 }
 
 export const useAttendanceStore = create<AttendanceStore>((set) => ({
   todayAttendance: null,
   history: [],
   isLoading: false,
+
+  setWorkingHours:(workingHours:number)=>
+     set((state) => ({
+      todayAttendance: state.todayAttendance
+        ? {
+            ...state.todayAttendance,
+            totalWorkingHours: workingHours,
+          }
+        : { events: [], totalWorkingHours: workingHours, isComplete: false, sessions: 0 },
+    })),
 
   setTodayAttendance: (todayAttendance) => set({ todayAttendance }),
   setHistory: (history) => set({ history }),

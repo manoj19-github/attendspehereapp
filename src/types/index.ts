@@ -26,6 +26,7 @@ export interface LocationState {
   distance: number;
   status: 'in_office_area' | 'out_office_area';
   isWorkingHours: boolean;
+  isSameLocation:boolean;
 }
 
 export interface AttendanceEvent {
@@ -161,4 +162,20 @@ export interface ApiResponse<T = any> {
   success: boolean;
   data: T;
   message?: string;
+}
+
+
+export interface OfficeSettings {
+  OFFICE_LAT: number;
+  OFFICE_LNG: number;
+  OFFICE_RADIUS: number;
+  OFFICE_NAME: string;
+  LOCATION_POLLING_INTERVAL: number;
+  WORKING_HOURS: WORKINGHOURS;
+}
+
+export interface WORKINGHOURS {
+  start: number;
+  end: number;
+  days: number[];
 }

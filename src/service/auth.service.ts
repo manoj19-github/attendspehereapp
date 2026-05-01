@@ -2,6 +2,7 @@
 import apiClient from './client';
 
 export const authApi = {
+  getOfficeSettings: () => apiClient.get('/office-settings'),
   login: (data: {
     email: string;
     password: string;

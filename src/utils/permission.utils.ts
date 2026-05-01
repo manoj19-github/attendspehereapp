@@ -8,10 +8,7 @@ import { useLocationStore } from '../store/useLocationStore';
 import { useOfflineStore } from '../store/useOfflineStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { 
-  BACKGROUND_TASK_NAME, 
-  LOCATION_POLLING_INTERVAL, 
-  OFFICE_LAT, 
-  OFFICE_LNG 
+  BACKGROUND_TASK_NAME
 } from '../enviroments';
 
 import { isWithinWorkingHours } from '../utils/time.utils';
@@ -68,12 +65,13 @@ class LocationService {
   }
 
   startPolling() {
+    const officeSettings = useAuthStore.getState().officeSettings;
     if (this.pollingInterval) return;
     
     useLocationStore.getState().startTracking();
     this.pollingInterval = setInterval(() => {
       this.sendLocationPing();
-    }, LOCATION_POLLING_INTERVAL);
+    }, officeSettings?.LOCATION_POLLING_INTERVAL);
     
     // Immediate first ping
     this.sendLocationPing();
@@ -89,14 +87,15 @@ class LocationService {
 
   private async sendLocationPing() {
     const { isOnline } = useOfflineStore.getState();
-    const { user } = useAuthStore.getState();
+    const { user,officeSettings } = useAuthStore.getState();
+    
 
     if (!user) return;
 
     Geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const distance = calculateDistance(latitude, longitude, OFFICE_LAT, OFFICE_LNG);
+        const distance = calculateDistance(latitude, longitude, officeSettings?.OFFICE_LAT??0, officeSettings?.OFFICE_LNG??0);
         const status = distance <= 100 ? 'in_office_area' : 'out_office_area';
         const isWorkingHours = isWithinWorkingHours();
 
@@ -133,6 +132,7 @@ class LocationService {
   }
 
   async startBackgroundTracking() {
+    const officeSettings = useAuthStore.getState().officeSettings;
     const options = {
       taskName: BACKGROUND_TASK_NAME,
       taskTitle: 'AttendSphere Tracking',
@@ -144,7 +144,7 @@ class LocationService {
       color: '#4A7DE4',
       linkingURI: 'attendsphere://',
       parameters: {
-        delay: LOCATION_POLLING_INTERVAL,
+        delay: officeSettings?.LOCATION_POLLING_INTERVAL??0,
       },
     };
 
@@ -168,7 +168,7 @@ class LocationService {
     }
   };
 
-  private sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep = (ms: number) => new Promise((resolve:any) => setTimeout(resolve, ms));
 }
 
 export const locationService = new LocationService();

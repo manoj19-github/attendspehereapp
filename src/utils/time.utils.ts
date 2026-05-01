@@ -1,14 +1,16 @@
 // src/utils/time.ts
 import dayjs from 'dayjs';
-import { WORKING_HOURS } from '../enviroments';
+import { useAuthStore } from '../store/useAuthStore';
+
 
 
 export const isWithinWorkingHours = (date: Date = new Date()): boolean => {
+  const officeSettings = useAuthStore.getState().officeSettings;
   const day = date.getDay();
-  if (!WORKING_HOURS.days.includes(day)) return false;
+  if (!officeSettings?.WORKING_HOURS?.days.includes(day)) return false;
 
   const hour = date.getHours();
-  return hour >= WORKING_HOURS.start && hour < WORKING_HOURS.end;
+  return hour >= officeSettings?.WORKING_HOURS?.start && hour < officeSettings?.WORKING_HOURS?.end;
 };
 
 export const formatTime = (date: string | Date): string => {
