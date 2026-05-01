@@ -78,9 +78,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.asrlm_gig_worker_app"
+    namespace "com.attendspehere"
     defaultConfig {
-        applicationId "com.asrlm_gig_worker_app"
+        applicationId "com.attendspehere"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2

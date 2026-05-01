@@ -358,7 +358,7 @@ const RegisterGigFirstStep = ({ navigation }: RegisterGigFirstStepProps) => {
             <Text style={styles.heroTitle}>
               Welcome to{' '}
               <Text style={styles.heroTitleAccent}>
-                Kaushal CONNECT Partner Onboarding
+                AttendSpehere Partner Onboarding
               </Text>
             </Text>
 

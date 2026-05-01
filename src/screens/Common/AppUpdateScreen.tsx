@@ -29,7 +29,7 @@ interface AppUpdateScreenProps {
 const { width } = Dimensions.get('window');
 
 const HARD = {
-  appName: 'Kaushal CONNECT PARTNER',
+  appName: 'AttendSpehere PARTNER',
   currentVersion: '1.0.0',
   newVersion: '1.2.3',
   buildDate: 'Jan 2026',

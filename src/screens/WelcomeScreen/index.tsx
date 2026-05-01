@@ -181,7 +181,7 @@ export default function WelcomeScreen({
           </View>
 
           <Text style={styles.appName}>
-            Kaushal CONNECT - Partner
+            AttendSpehere - Partner
           </Text>
           <Text style={styles.tagline}>{subtitle}</Text>
 

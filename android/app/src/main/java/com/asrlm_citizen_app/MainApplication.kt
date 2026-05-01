@@ -1,4 +1,4 @@
-package com.asrlm_gig_worker_app
+package com.attendspehere
 
 import android.app.Application
 import com.facebook.react.PackageList

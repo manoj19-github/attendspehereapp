@@ -24,7 +24,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     window = UIWindow(frame: UIScreen.main.bounds)
 
     factory.startReactNative(
-      withModuleName: "asrlm_gig_worker_app",
+      withModuleName: "attendspehere",
       in: window,
       launchOptions: launchOptions
     )
