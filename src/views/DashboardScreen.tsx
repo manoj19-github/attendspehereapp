@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// src/views/DashboardScreen.tsx
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,12 +8,24 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  LogOut,
+  LogIn,
+  Bell,
+  Clock,
+  ChevronRight,
+  Sun,
+  Sunset,
+  Moon,
+  Sparkles,
+} from 'lucide-react-native';
 import { Colors, Shadows, BorderRadius, Spacing } from '../constants/colors';
 import { getCurrentPosition } from '../utils/location.utils';
-import { isWithinWorkingHours } from '../utils/time.utils'; // ✅ IMPORTED
-import { locationApi } from '../service/location.service'; // ✅ IMPORTED
+import { isWithinWorkingHours } from '../utils/time.utils';
+import { locationApi } from '../service/location.service';
 
 import AttendanceTimeline from '../components/AttendanceTimeline';
 import OfficeMapBanner from '../components/OfficeMapBanner';
@@ -36,14 +49,15 @@ export const DashboardScreen: React.FC = () => {
   const { distance, currentLocation } = useLocationStore();
 
   const status = useLocationStore((state) => state.status ?? null);
-  
   const firstCheckinDone = useLocationStore((state) => state.firstCheckinDone ?? false);
-  const isTracking = useLocationStore((state) => state.isTracking ?? false);
 
   const { todayAttendance, setTodayAttendance } = useAttendanceStore();
   const isOnline = useOfflineStore((state) => state.isOnline ?? true);
 
-  // ✅ CHECKED-IN STATE: true if last event today is 'checkin'
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
   const isCheckedIn = useMemo(() => {
     if (!todayAttendance?.events?.length) return false;
     const lastEvent = todayAttendance.events[todayAttendance.events.length - 1];
@@ -52,39 +66,35 @@ export const DashboardScreen: React.FC = () => {
 
   const isWorkingHours = useMemo(() => isWithinWorkingHours(), [officeSettings]);
 
-  // ✅ SHOW CHECKIN: no checkin yet + inside office
   const showCheckinButton = useMemo(
     () => !isCheckedIn && !firstCheckinDone && status === 'in_office_area',
     [isCheckedIn, firstCheckinDone, status]
   );
 
-  // ✅ SHOW CHECKOUT: currently checked in (covers working-hours-ended + manual)
-  const showCheckoutButton = useMemo(
-    () => isCheckedIn,
-    [isCheckedIn]
-  );
-
-  // ✅ URGENT CHECKOUT: working hours ended but still checked in
-  const isUrgentCheckout = useMemo(
-    () => isCheckedIn && !isWorkingHours,
-    [isCheckedIn, isWorkingHours]
-  );
+  const showCheckoutButton = useMemo(() => isCheckedIn, [isCheckedIn]);
+  const isUrgentCheckout = useMemo(() => isCheckedIn && !isWorkingHours, [isCheckedIn, isWorkingHours]);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('useFocusEffect:   76');
-    (async () => {
-      try {
-        const position: any = await getCurrentPosition();
-        console.log('position:   76', position);
-        useLocationStore.getState().setCurrentLocation(position);
-      } catch (error) {
-        console.log('location error', error);
-      }
-    })();
-    loadDashboardData();  
-    startBackgroundService();
-  }, []));
+      (async () => {
+        try {
+          const position: any = await getCurrentPosition();
+          useLocationStore.getState().setCurrentLocation(position);
+        } catch (error) {
+          console.log('location error', error);
+        }
+      })();
+      loadDashboardData();
+      startBackgroundService();
+    }, [])
+  );
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const startBackgroundService = async () => {
     try {
@@ -92,12 +102,9 @@ export const DashboardScreen: React.FC = () => {
         typeof backgroundLocationService.isServiceRunning === 'function'
           ? backgroundLocationService.isServiceRunning()
           : false;
-
-      if (!isRunning) {
-        await backgroundLocationService.start();
-      }
+      if (!isRunning) await backgroundLocationService.start();
     } catch (error) {
-      console.error('Failed to start background service:', error);
+      console.error('Background service error:', error);
     }
   };
 
@@ -107,16 +114,11 @@ export const DashboardScreen: React.FC = () => {
       const response = await apiClient.get('/attendance/today');
       if (response.data?.data) {
         setTodayAttendance(response.data.data);
-
-        const hasCheckin = response.data.data.events?.some(
-          (e: any) => e.event_type === 'checkin'
-        );
-        if (hasCheckin) {
-          useLocationStore.getState().setFirstCheckinDone(true);
-        }
+        const hasCheckin = response.data.data.events?.some((e: any) => e.event_type === 'checkin');
+        if (hasCheckin) useLocationStore.getState().setFirstCheckinDone(true);
       }
     } catch (error) {
-      console.error('Failed to load dashboard:', error);
+      console.error('Dashboard load error:', error);
     } finally {
       setLoading(false);
     }
@@ -128,7 +130,6 @@ export const DashboardScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  // ✅ MANUAL CHECK-IN
   const handleManualCheckin = async () => {
     try {
       if (loading) return;
@@ -153,13 +154,10 @@ export const DashboardScreen: React.FC = () => {
     }
   };
 
-  // ✅ MANUAL CHECK-OUT (works inside OR outside office)
   const handleManualCheckout = async () => {
     try {
       if (loading) return;
       setLoading(true);
-
-      // Try to get current location for the record (optional)
       let lat, lng;
       try {
         const position: any = await getCurrentPosition();
@@ -167,111 +165,199 @@ export const DashboardScreen: React.FC = () => {
         lng = position.longitude;
         useLocationStore.getState().setCurrentLocation(position);
       } catch {
-        // Location failed — allow checkout anyway (working hours ended, user left, GPS off, etc.)
         lat = currentLocation?.latitude;
         lng = currentLocation?.longitude;
       }
 
       const response = await locationApi.manualCheckout({ lat, lng });
-
       if (response.data?.success) {
         Alert.alert('✅ Checked Out', 'You have been checked out successfully.');
-        useLocationStore.getState().setFirstCheckinDone(false); // Reset for next day
+        useLocationStore.getState().setFirstCheckinDone(false);
         await loadDashboardData();
       }
     } catch (error: any) {
-      console.log('error: ', error);
       Alert.alert('❌ Error', error.response?.data?.message || 'Check-out failed');
     } finally {
       setLoading(false);
     }
   };
 
+  // Get greeting with icon
+  const getGreetingData = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { text: 'Good Morning', icon: Sun, color: '#F59E0B', bg: '#FEF3C7' };
+    if (hour < 17) return { text: 'Good Afternoon', icon: Sun, color: '#F97316', bg: '#FFEDD5' };
+    if (hour < 21) return { text: 'Good Evening', icon: Sunset, color: '#8B5CF6', bg: '#EDE9FE' };
+    return { text: 'Good Night', icon: Moon, color: '#6366F1', bg: '#E0E7FF' };
+  };
+
+  const greeting = getGreetingData();
+  const GreetingIcon = greeting.icon;
+
   if (loading && !todayAttendance) {
-    return <LoadingSpinner fullScreen message="Please wait while we load your dashboard..." />;
+    return <LoadingSpinner fullScreen message="Loading your dashboard..." />;
   }
 
   return (
     <View style={styles.container}>
       <OfflineBanner />
-      <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>
-              Hello, {user?.fullName?.split(' ')[0] ?? 'User'} 👋
-            </Text>
-            <Text style={styles.date}>
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Text>
+
+      {/* 🎨 Gradient Header Background */}
+      <View style={styles.headerBg}>
+        <View style={styles.headerCircle1} />
+        <View style={styles.headerCircle2} />
+      </View>
+          
+          <View style={styles.headerRow}>
+            {/* Left: Avatar + Greeting */}
+            <View style={styles.headerLeft}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
+                </Text>
+              </View>
+              <View style={styles.greetingBox}>
+                <View style={styles.greetingRow}>
+                  <View style={[styles.greetingIconBox, { backgroundColor: greeting.bg }]}>
+                    <GreetingIcon size={12} color={greeting.color} strokeWidth={2.5} />
+                  </View>
+                  <Text style={[styles.greetingText, { color: greeting.color }]}>
+                    {greeting.text}
+                  </Text>
+                </View>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {user?.fullName ?? 'User'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Right: Date + Notification */}
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.notificationBtn}
+                // onPress={() => navigation.navigate('Notifications')}
+                activeOpacity={0.7}
+              >
+                <Bell size={21} color={Colors.darkBlue} />
+                <View style={styles.notificationBadge} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.settingsBtn}
-            disabled={loading}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Text style={styles.settingsIcon}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
+
+          {/* Date Chip - Below greeting */}
+          <View style={styles.dateRow}>
+            <View style={styles.dateChip}>
+              <Clock size={12} color={Colors.primary} />
+              <Text style={styles.dateText}>
+                {new Date().toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </Text>
+            </View>
+            <View style={styles.statusChip}>
+              <Sparkles size={12} color="#10B981" />
+              <Text style={styles.statusChipText}>
+                {isWorkingHours ? 'Working Hours' : 'Off Hours'}
+              </Text>
+            </View>
+          </View>
+        
 
 
       <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        
-        <StatusIndicator />
+        {/* ✨ MODERN COMPACT HEADER */}
+    
+        {/* Status Indicator */}
+        <Animated.View>
+          <StatusIndicator />
+        </Animated.View>
 
-        {/* ✅ CHECK-IN BUTTON */}
-        {showCheckinButton && (
-          <TouchableOpacity
-            disabled={loading}
-            style={styles.checkinBtn}
-            onPress={handleManualCheckin}
-          >
-            <Text style={styles.checkinBtnText}>✋ Tap to Check In</Text>
-            <Text style={styles.checkinSubtext}>First check-in of the day required</Text>
-          </TouchableOpacity>
-        )}
+        {/* Action Buttons */}
+        <Animated.View >
+          {showCheckinButton && (
+            <TouchableOpacity
+              disabled={loading}
+              style={styles.checkinCard}
+              onPress={handleManualCheckin}
+              activeOpacity={0.8}
+            >
+              <View style={styles.checkinIconCircle}>
+                <LogIn size={22} color="#fff" />
+              </View>
+              <View style={styles.checkinContent}>
+                <Text style={styles.checkinTitle}>Check In</Text>
+                <Text style={styles.checkinSubtitle}>Tap to start your day</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
 
-        {/* ✅ CHECK-OUT BUTTON */}
-        {showCheckoutButton && (
-          <TouchableOpacity
-            disabled={loading}
-            style={[
-              styles.checkoutBtn,
-              isUrgentCheckout && styles.checkoutBtnUrgent,
-            ]}
-            onPress={handleManualCheckout}
-          >
-            <Text style={styles.checkoutBtnText}>
-              {isUrgentCheckout ? '⚠️ Check Out Now' : '🚪 Check Out'}
-            </Text>
-            <Text style={styles.checkoutSubtext}>
-              {isUrgentCheckout
-                ? 'Working hours ended — you are still checked in'
-                : 'Manual check-out'}
-            </Text>
-          </TouchableOpacity>
-        )}
+          {showCheckoutButton && (
+            <TouchableOpacity
+              disabled={loading}
+              style={[
+                styles.checkoutCard,
+                isUrgentCheckout && styles.checkoutCardUrgent,
+              ]}
+              onPress={handleManualCheckout}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                styles.checkoutIconCircle,
+                isUrgentCheckout && { backgroundColor: Colors.error + '15' }
+              ]}>
+                <LogOut
+                  size={22}
+                  color={isUrgentCheckout ? Colors.error : Colors.warning}
+                />
+              </View>
+              <View style={styles.checkinContent}>
+                <Text style={[
+                  styles.checkoutTitle,
+                  isUrgentCheckout && { color: Colors.error }
+                ]}>
+                  {isUrgentCheckout ? 'Check Out Now' : 'Check Out'}
+                </Text>
+                <Text style={styles.checkoutSubtitle}>
+                  {isUrgentCheckout ? 'Hours ended — still checked in' : 'End your session'}
+                </Text>
+              </View>
+              <ChevronRight
+                size={18}
+                color={isUrgentCheckout ? Colors.error : Colors.warning}
+              />
+            </TouchableOpacity>
+          )}
+        </Animated.View>
 
-        <OfficeMapBanner
-          distance={distance}
-          userLat={currentLocation?.latitude}
-          userLng={currentLocation?.longitude}
-        />
+        {/* Office Map Banner */}
+        <Animated.View >
+          <OfficeMapBanner
+            distance={distance}
+            userLat={currentLocation?.latitude}
+            userLng={currentLocation?.longitude}
+          />
+        </Animated.View>
 
-        <WorkingHoursTimer />
+        {/* Working Hours Timer */}
+        <Animated.View >
+          <WorkingHoursTimer />
+        </Animated.View>
 
-        <AttendanceTimeline />
-        <View style={{height:50}}/>
+        {/* Attendance Timeline */}
+        <Animated.View >
+          <AttendanceTimeline />
+        </Animated.View>
 
-        
+        <View style={{ height: 30 }} />
       </ScrollView>
+      <View style={{ height: 100 }} />
     </View>
   );
 };
@@ -279,108 +365,242 @@ export const DashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
+  },
+  // 🎨 Header Background
+  headerBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    backgroundColor: '#EEF2FF',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+  },
+  headerCircle1: {
+    position: 'absolute',
+    top: -40,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#C7D2FE',
+    opacity: 0.4,
+  },
+  headerCircle2: {
+    position: 'absolute',
+    top: 20,
+    left: -15,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#A5B4FC',
+    opacity: 0.3,
   },
   scrollContent: {
-    paddingBottom: Spacing.xl,
+    paddingTop: 0,
+    // paddingHorizontal: Spacing.md,
   },
+  // ✨ COMPACT MODERN HEADER
   header: {
+    paddingTop:  13,
+    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    width: '100%',
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
   },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.textPrimary,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
   },
-  date: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginTop: 4,
-  },
-  settingsBtn: {
+  // Avatar
+  avatar: {
     width: 44,
     height: 44,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.sm,
   },
-  settingsIcon: {
-    fontSize: 20,
-  },
-  checkinBtn: {
-    backgroundColor: Colors.primary,
-    marginHorizontal: Spacing.md,
-    marginVertical: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    ...Shadows.md,
-  },
-  checkinBtnText: {
-    color: Colors.textInverse,
+  avatarText: {
     fontSize: 18,
     fontWeight: '800',
+    color: '#fff',
   },
-  checkinSubtext: {
-    color: Colors.primaryLighter,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  // ✅ NEW: Checkout button styles
-  checkoutBtn: {
-    backgroundColor: Colors.warning || '#F59E0B',
-    marginHorizontal: Spacing.md,
-    marginVertical: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    ...Shadows.md,
-  },
-  checkoutBtnUrgent: {
-    backgroundColor: Colors.error || '#EF4444',
-    borderWidth: 2,
-    borderColor: '#B91C1C',
-  },
-  checkoutBtnText: {
-    color: Colors.textInverse || '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  checkoutSubtext: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  actionBtn: {
+  // Greeting Box
+  greetingBox: {
     flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.md,
+    justifyContent: 'center',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  greetingIconBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  userName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color:Colors.darkBlue,
+    letterSpacing: -0.3,
+  },
+  // Header Right
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
     alignItems: 'center',
     ...Shadows.sm,
   },
-  actionIcon: {
-    fontSize: 24,
-    marginBottom: 4,
+  notificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.error,
+    borderWidth: 1.5,
+    borderColor: '#fff',
   },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+  // Date Row
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+    paddingLeft: 46, // Align with greeting (backBtn 36 + gap 10)
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+    ...Shadows.sm,
+  },
+  dateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  // Cards
+  checkinCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginVertical: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 2,
+    borderColor: Colors.primary + '12',
+    ...Shadows.md,
+  },
+  checkinIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  checkinContent: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  checkinTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  checkinSubtitle: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  checkoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginVertical: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 2,
+    borderColor: Colors.warning + '15',
+    ...Shadows.md,
+  },
+  checkoutCardUrgent: {
+    borderColor: Colors.error + '25',
+    backgroundColor: Colors.error + '03',
+  },
+  checkoutIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.warning + '12',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkoutTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.warning,
+  },
+  checkoutSubtitle: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 1,
+    fontWeight: '500',
   },
 });
+
+export default DashboardScreen;

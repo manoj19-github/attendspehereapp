@@ -186,6 +186,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    borderRadius:14,
     elevation: 6,
     transform: [{ translateY: -2 }],
   },

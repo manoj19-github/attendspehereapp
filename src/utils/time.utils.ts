@@ -31,6 +31,12 @@ export const getCurrentTime = (): string => {
   return dayjs().format('h:mm:ss A');
 };
 
+export const formatTo12Hour = (hour: number) => {
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const h = hour % 12 || 12;
+  return `${h} ${suffix}`;
+}
+
 
 
 // export const formatTime = (dateString: string): string => {

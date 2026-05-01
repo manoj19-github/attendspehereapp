@@ -1,30 +1,64 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Text,
+  Animated,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
-import { Colors, Spacing } from '../constants/colors';
+import {
+  ChevronLeft,
+  Bell,
+  Clock,
+  Sparkles,
+  Sun,
+  Sunset,
+  Moon,
+  MapPin,
+} from 'lucide-react-native';
+import { Colors, Shadows, BorderRadius, Spacing } from '../constants/colors';
 import { useLocationStore } from '../store/useLocationStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { calculateDistance } from '../utils/distance.utils';
 
 export const FullMapScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { user } = useAuthStore();
   const { currentLocation, officeLocation, status, distance } = useLocationStore();
   const [mapHtml, setMapHtml] = useState('');
 
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      console.log("officeLocation >> ",officeLocation);
-      console.log("currentLocation >> ",currentLocation);
       if (officeLocation && currentLocation) {
         generateMapHtml();
       }
     }, [officeLocation, currentLocation, distance])
   );
+
+  // Get greeting with icon
+  const getGreetingData = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { text: 'Good Morning', icon: Sun, color: '#F59E0B', bg: '#FEF3C7' };
+    if (hour < 17) return { text: 'Good Afternoon', icon: Sun, color: '#F97316', bg: '#FFEDD5' };
+    if (hour < 21) return { text: 'Good Evening', icon: Sunset, color: '#8B5CF6', bg: '#EDE9FE' };
+    return { text: 'Good Night', icon: Moon, color: '#6366F1', bg: '#E0E7FF' };
+  };
+
+  const greeting = getGreetingData();
+  const GreetingIcon = greeting.icon;
 
   const generateMapHtml = () => {
     const officeLat = officeLocation?.lat ?? 0;
@@ -34,8 +68,6 @@ export const FullMapScreen: React.FC = () => {
 
     const actualDistance = distance && distance > 0 ? distance : calculateDistance(officeLat, officeLng, userLat, userLng);
     const isVeryClose = actualDistance < 50;
-
-    // Check if exactly same coordinates
     const isExactSame = officeLat === userLat && officeLng === userLng;
 
     const html = `
@@ -50,13 +82,11 @@ export const FullMapScreen: React.FC = () => {
           html, body { height: 100%; width: 100%; overflow: hidden; }
           #map { height: 100vh; width: 100vw; }
           
-          /* Office marker - larger with label */
           .office-marker-container {
             position: relative;
             width: 32px;
             height: 40px;
           }
-          
           .office-marker-pin {
             background: #EF4444;
             width: 28px;
@@ -69,7 +99,6 @@ export const FullMapScreen: React.FC = () => {
             top: 0;
             left: 2px;
           }
-          
           .office-marker-inner {
             width: 12px;
             height: 12px;
@@ -79,7 +108,6 @@ export const FullMapScreen: React.FC = () => {
             top: 8px;
             left: 10px;
           }
-          
           .office-label {
             position: absolute;
             top: 32px;
@@ -94,14 +122,11 @@ export const FullMapScreen: React.FC = () => {
             white-space: nowrap;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           }
-          
-          /* User marker - pulsing blue dot */
           .user-marker-container {
             position: relative;
             width: 24px;
             height: 24px;
           }
-          
           .user-marker-dot {
             background: #3B82F6;
             width: 20px;
@@ -114,7 +139,6 @@ export const FullMapScreen: React.FC = () => {
             left: 2px;
             z-index: 10;
           }
-          
           .user-pulse-ring {
             position: absolute;
             top: 50%;
@@ -127,12 +151,10 @@ export const FullMapScreen: React.FC = () => {
             animation: pulse-ring 2s infinite;
             z-index: 5;
           }
-          
           @keyframes pulse-ring {
             0% { transform: scale(0.6); opacity: 1; }
             100% { transform: scale(1.8); opacity: 0; }
           }
-          
           .user-label {
             position: absolute;
             top: 28px;
@@ -147,8 +169,6 @@ export const FullMapScreen: React.FC = () => {
             white-space: nowrap;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           }
-          
-          /* Info box */
           .info-box {
             position: absolute; 
             bottom: 20px; 
@@ -161,7 +181,6 @@ export const FullMapScreen: React.FC = () => {
             z-index: 1000;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
-          
           .info-row {
             display: flex;
             align-items: center;
@@ -169,20 +188,17 @@ export const FullMapScreen: React.FC = () => {
             flex-wrap: wrap;
             gap: 8px;
           }
-          
           .info-title { 
             font-weight: 700; 
             font-size: 16px; 
             margin-bottom: 6px; 
             color: #1f2937; 
           }
-          
           .info-detail { 
             font-size: 14px; 
             color: #6b7280; 
             line-height: 1.5; 
           }
-          
           .distance-badge {
             display: inline-flex;
             align-items: center;
@@ -194,12 +210,10 @@ export const FullMapScreen: React.FC = () => {
             font-weight: 700;
             border: 1px solid ${actualDistance <= 100 ? '#86efac' : '#fca5a5'};
           }
-          
           .distance-icon {
             margin-right: 4px;
             font-size: 14px;
           }
-          
           .same-location-notice {
             background: #fef3c7;
             border: 1px solid #fbbf24;
@@ -257,7 +271,6 @@ export const FullMapScreen: React.FC = () => {
             maxZoom: 19
           }).addTo(map);
 
-          // Office marker HTML - pin style with label
           const officeIcon = L.divIcon({
             className: 'office-marker-wrapper',
             html: '<div class="office-marker-container"><div class="office-marker-pin"></div><div class="office-marker-inner"></div><div class="office-label">OFFICE</div></div>',
@@ -265,7 +278,6 @@ export const FullMapScreen: React.FC = () => {
             iconAnchor: [16, 40]
           });
 
-          // User marker HTML - pulsing dot with label
           const userIcon = L.divIcon({
             className: 'user-marker-wrapper',
             html: '<div class="user-marker-container"><div class="user-pulse-ring"></div><div class="user-marker-dot"></div><div class="user-label">YOU</div></div>',
@@ -273,23 +285,18 @@ export const FullMapScreen: React.FC = () => {
             iconAnchor: [25, 30]
           });
 
-          // ALWAYS place office marker at EXACT office location
           const officeMarker = L.marker([officeLat, officeLng], { 
             icon: officeIcon,
-            zIndexOffset: 1000  // Office on top
+            zIndexOffset: 1000
           }).addTo(map);
 
-          // User marker positioning
           let displayUserLat = userLat;
           let displayUserLng = userLng;
           
-          // ALWAYS nudge user marker when at same location so both are visible
           if (isExactSame) {
-            // Nudge southeast by ~30 meters so office pin and user dot don't overlap
             displayUserLat = userLat + 0.00025;
             displayUserLng = userLng + 0.00025;
           } else if (actualDistance < 20) {
-            // Even when very close but not exact, slightly separate them
             displayUserLat = userLat + 0.00015;
             displayUserLng = userLng + 0.00015;
           }
@@ -299,7 +306,6 @@ export const FullMapScreen: React.FC = () => {
             zIndexOffset: 500
           }).addTo(map);
 
-          // Geofence circle at exact office location
           L.circle([officeLat, officeLng], {
             color: '#EF4444',
             fillColor: '#FEE2E2',
@@ -308,7 +314,6 @@ export const FullMapScreen: React.FC = () => {
             weight: 2
           }).addTo(map);
 
-          // Connect office and user with a dashed line when very close
           if (actualDistance < 100) {
             L.polyline(
               [[officeLat, officeLng], [displayUserLat, displayUserLng]],
@@ -321,9 +326,7 @@ export const FullMapScreen: React.FC = () => {
             ).addTo(map);
           }
 
-          // Map view logic
           if (isVeryClose || actualDistance < 30) {
-            // Center on midpoint between office and displayed user position
             const centerLat = (officeLat + displayUserLat) / 2;
             const centerLng = (officeLng + displayUserLng) / 2;
             map.setView([centerLat, centerLng], 18);
@@ -339,7 +342,6 @@ export const FullMapScreen: React.FC = () => {
             });
           }
 
-          // Auto-open popups
           setTimeout(() => {
             officeMarker.openPopup();
           }, 600);
@@ -350,17 +352,88 @@ export const FullMapScreen: React.FC = () => {
     setMapHtml(html);
   };
 
-
-  console.log("mapHtml>> ",mapHtml);
-  
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-     
-        <Text style={styles.title}>🗺️ Full Map View</Text>
-        <View style={styles.placeholder} />
+      {/* 🎨 Gradient Header Background */}
+      <View style={styles.headerBg}>
+        <View style={styles.headerCircle1} />
+        <View style={styles.headerCircle2} />
       </View>
 
+      {/* ✨ Modern Dashboard-Style Header */}
+      <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <View style={styles.headerRow}>
+          {/* Left: Back + Avatar + Greeting */}
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft size={24} color={Colors.darkBlue} />
+            </TouchableOpacity>
+            
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
+            </View>
+            
+            <View style={styles.greetingBox}>
+              <View style={styles.greetingRow}>
+                <View style={[styles.greetingIconBox, { backgroundColor: greeting.bg }]}>
+                  <GreetingIcon size={12} color={greeting.color} strokeWidth={2.5} />
+                </View>
+                <Text style={[styles.greetingText, { color: greeting.color }]}>
+                  {greeting.text}
+                </Text>
+              </View>
+              <Text style={styles.userName} numberOfLines={1}>
+                {user?.fullName ?? 'User'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Right: Notification */}
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.notificationBtn}
+              activeOpacity={0.7}
+            >
+              <Bell size={21} color={Colors.darkBlue} />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Date Chip + Location Status */}
+        <View style={styles.dateRow}>
+          <View style={styles.dateChip}>
+            <Clock size={12} color={Colors.primary} />
+            <Text style={styles.dateText}>
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </Text>
+          </View>
+          <View style={[
+            styles.statusChip,
+            { backgroundColor: status === 'in_office_area' ? '#ECFDF5' : '#FEF2F2' }
+          ]}>
+            <MapPin size={12} color={status === 'in_office_area' ? '#059669' : '#DC2626'} />
+            <Text style={[
+              styles.statusChipText,
+              { color: status === 'in_office_area' ? '#059669' : '#DC2626' }
+            ]}>
+              {status === 'in_office_area' ? 'In Office Area' : 'Outside Office'}
+            </Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Map Content */}
       {mapHtml ? (
         <WebView
           source={{ html: mapHtml }}
@@ -376,10 +449,11 @@ export const FullMapScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Bottom Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
-          <Text style={styles.legendText}>Office (100m radius)</Text>
+          <Text style={styles.legendText}>Office (100m)</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
@@ -390,34 +464,217 @@ export const FullMapScreen: React.FC = () => {
             backgroundColor: status === 'in_office_area' ? Colors.success : Colors.warning 
           }]} />
           <Text style={styles.legendText}>
-            Status: {status === 'in_office_area' ? 'Inside' : 'Outside'}
+            {status === 'in_office_area' ? 'Inside' : 'Outside'}
           </Text>
         </View>
       </View>
-      <View style={{height:50}}/>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white },
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  // 🎨 Header Background
+  headerBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    backgroundColor: '#EEF2FF',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  headerCircle1: {
+    position: 'absolute',
+    top: -40,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#C7D2FE',
+    opacity: 0.4,
+  },
+  headerCircle2: {
+    position: 'absolute',
+    top: 20,
+    left: -15,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#A5B4FC',
+    opacity: 0.3,
+  },
+  // ✨ Modern Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md, paddingTop: Spacing.lg, paddingBottom: Spacing.md,
-    backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray100,
+    paddingTop: 13,
+    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    zIndex: 1,
   },
-  backBtn: { padding: Spacing.sm },
-  backText: { fontSize: 16, color: Colors.primary, fontWeight: '600' },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.black },
-  placeholder: { width: 60 },
-  map: { flex: 1 },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    width: '100%',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  greetingBox: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  greetingIconBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: Colors.darkBlue,
+    letterSpacing: -0.3,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notificationBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.error,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+    paddingLeft: 46, // Align with greeting (backBtn 36 + gap 10)
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+    ...Shadows.sm,
+  },
+  dateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  map: {
+    flex: 1,
+    marginTop: Spacing.sm,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    overflow: 'hidden',
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   legend: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    paddingVertical: Spacing.md, backgroundColor: Colors.gray50,
-    borderTopWidth: 1, borderTopColor: Colors.gray200,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray100,
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center' },
-  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 6 },
-  legendText: { fontSize: 12, color: Colors.gray600, fontWeight: '500' },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  legendText: {
+    fontSize: 12,
+    color: Colors.gray600,
+    fontWeight: '500',
+  },
 });
+
+export default FullMapScreen;

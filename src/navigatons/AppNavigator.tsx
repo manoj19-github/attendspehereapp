@@ -8,12 +8,14 @@ import { SettingsScreen } from '../views/SettingsScreen';
 import { FullMapScreen } from '../views/FullMapScreen';
 import { DashboardScreen } from '../views/DashboardScreen';
 import { PermissionScreen } from '../views/PermissionScreen';
-import SplashScreen from '../components/SplashScreen';
+
 import { AttendanceHistoryScreen } from '../views/AttenndanceHistoryScreen';
 import { AuthScreen } from '../views/AuthScreen';
 import authApi from '../service/auth.service';
 import { useLocationStore } from '../store/useLocationStore';
 import BottomTabNavigator from './BottomTabNavigator';
+import { useNetwork } from '../hooks/useNetwork';
+import SplashScreen from '../views/SplashScreen';
 
 
 
@@ -35,6 +37,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
  const AppNavigator: React.FC = ():JSX.Element => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [isReady, setIsReady] = useState(false);
+  useNetwork();
 
 
 
@@ -43,8 +46,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
       try {
         await useAuthStore.getState().loadAuth();
         const authDetails = await authApi.getTokenDetails();
-        console.log('authDetails: ', authDetails);
-        console.log("authDetails >>>>>>>>>>> 42 ", authDetails?.data?.data?.token);
+        console.log('authDetails: ', authDetails?.data?.data);
+        
         if (authDetails?.data) {
           useAuthStore.getState().setUser(authDetails?.data?.data.user);
           useAuthStore.getState().setAccessToken(authDetails?.data?.data.token);
@@ -61,7 +64,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
       } catch (error) {
         console.log("error", error);
       } finally {
-        setIsReady(true);
+         setIsReady(true);
       }
     })();
 
@@ -101,7 +104,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
             initialRouteName={'Main'}
             screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
           >
-
+              {/* <Stack.Screen name="Auth" component={AuthScreen} /> */}
+              <Stack.Screen name="Permissions" component={PermissionScreen} />
 
             <Stack.Screen name="Main" component={BottomTabNavigator} />
             

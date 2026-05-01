@@ -3,7 +3,7 @@ import { StatusBar, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Toast from 'react-native-toast-message';
-import { useNetwork } from './src/hooks/useNetwork';
+
 import  AppNavigator  from './src/navigatons/AppNavigator';
 
 

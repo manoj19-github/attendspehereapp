@@ -1,5 +1,5 @@
 // src/components/dashboard/OfficeMapCard.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MapPin, Navigation, Maximize2 } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
@@ -10,6 +10,7 @@ import { RootStackParamList } from '../navigatons/AppNavigator';
 import { Colors } from '../constants/colors';
 import Card from './Card';
 import { useAuthStore } from '../store/useAuthStore';
+import { formatTo12Hour } from '../utils/time.utils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,7 +23,10 @@ interface Props {
 const OfficeMapCard: React.FC<Props> = ({ userLat, userLng, distance }) => {
   const navigation = useNavigation<NavigationProp>();
   const {officeSettings} = useAuthStore();
-  const isInside = distance <= 100;
+  const isInside = distance <= officeSettings?.DISTANCE_THRESHOLD;
+  const changeTime12hour = useCallback((hour:number)=>{
+    return formatTo12Hour(hour);
+  },[]);
 
   // Check if user location is available
   const hasUserLocation = userLat != null && userLng != null;
@@ -242,6 +246,8 @@ const OfficeMapCard: React.FC<Props> = ({ userLat, userLng, distance }) => {
   `;
 
 
+
+
   return (
     <Card style={styles.container}>
       <View style={styles.header}>
@@ -276,8 +282,8 @@ const OfficeMapCard: React.FC<Props> = ({ userLat, userLng, distance }) => {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.address}>123 Business Park, Tech City</Text>
-        <Text style={styles.hours}>Working Hours: 9:00 AM - 6:00 PM</Text>
+        <Text style={styles.address}>{officeSettings?.OFFICE_ADDRESS}</Text>
+        <Text style={styles.hours}>Working Hours: {changeTime12hour(officeSettings?.WORKING_HOURS?.start)} - {changeTime12hour(officeSettings?.WORKING_HOURS?.end)}</Text>
       </View>
     </Card>
   );

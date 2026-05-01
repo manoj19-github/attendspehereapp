@@ -165,17 +165,23 @@ export interface ApiResponse<T = any> {
 }
 
 
-export interface OfficeSettings {
-  OFFICE_LAT: number;
-  OFFICE_LNG: number;
-  OFFICE_RADIUS: number;
-  OFFICE_NAME: string;
-  LOCATION_POLLING_INTERVAL: number;
-  WORKING_HOURS: WORKINGHOURS;
+export interface WorkingHours {
+	start: number;
+	end: number;
+	days: number[];
 }
 
-export interface WORKINGHOURS {
-  start: number;
-  end: number;
-  days: number[];
+export interface OfficeConfig {
+	OFFICE_LAT: number;
+	OFFICE_LNG: number;
+	OFFICE_RADIUS: number;
+	OFFICE_NAME: string;
+	OFFICE_ADDRESS: string;
+
+	LOCATION_POLLING_INTERVAL: number;
+
+	DISTANCE_THRESHOLD: number;
+	TIME_INTERVAL_MS: number;
+
+	WORKING_HOURS:WorkingHours;
 }

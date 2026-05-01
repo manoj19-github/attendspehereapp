@@ -1,4 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
+// src/views/AttendanceHistoryScreen.tsx
+import React, { useCallback, useRef, useState ,useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,27 +11,34 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Clock,
+  TrendingUp,
+  ChevronRight,
+  MapPin,
+  Briefcase,
+} from 'lucide-react-native';
 import { Colors, Shadows, BorderRadius, Spacing } from '../constants/colors';
 import { formatDate, formatTime } from '../utils/time.utils';
 import { AttendanceEvent } from '../types';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { attendanceApi } from '../service/attendance.service';
-import { ArrowBigLeft, ArrowLeft, Icon } from 'lucide-react-native';
+import { useAuthStore } from '../store/useAuthStore';
+import { SafeAreaFrameContext } from 'react-native-safe-area-context';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Group flat event array by calendar date string (YYYY-MM-DD) */
 function groupByDate(events: AttendanceEvent[]): { date: string; events: AttendanceEvent[] }[] {
   const map = new Map<string, AttendanceEvent[]>();
   for (const ev of events) {
-    // Use timestamp_event to derive a local date key
     const raw = ev.timestamp_event ?? ev.event_date ?? '';
-    const key = raw ? new Date(raw).toLocaleDateString('en-CA') : 'unknown'; // YYYY-MM-DD
+    const key = raw ? new Date(raw).toLocaleDateString('en-CA') : 'unknown';
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(ev);
   }
-  // Sort descending (newest first)
   return Array.from(map.entries())
     .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([date, evs]) => ({
@@ -43,12 +51,7 @@ function groupByDate(events: AttendanceEvent[]): { date: string; events: Attenda
     }));
 }
 
-/** Pair checkin+checkout events into sessions */
-function buildSessions(events: AttendanceEvent[]): {
-  checkin: AttendanceEvent | null;
-  checkout: AttendanceEvent | null;
-  durationMin: number | null;
-}[] {
+function buildSessions(events: AttendanceEvent[]) {
   const sessions: { checkin: AttendanceEvent | null; checkout: AttendanceEvent | null; durationMin: number | null }[] = [];
   let i = 0;
   while (i < events.length) {
@@ -65,7 +68,6 @@ function buildSessions(events: AttendanceEvent[]): {
       sessions.push({ checkin: ev, checkout, durationMin });
       i += checkout ? 2 : 1;
     } else {
-      // orphan checkout
       sessions.push({ checkin: null, checkout: ev, durationMin: null });
       i++;
     }
@@ -107,8 +109,7 @@ function friendlyDate(dateStr: string): { weekday: string; full: string; isToday
 const AnimatedEventRow: React.FC<{
   session: { checkin: AttendanceEvent | null; checkout: AttendanceEvent | null; durationMin: number | null };
   index: number;
-  isLast: boolean;
-}> = ({ session, index, isLast }) => {
+}> = ({ session, index }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(18)).current;
 
@@ -142,18 +143,15 @@ const AnimatedEventRow: React.FC<{
         isOngoing && styles.sessionCardOngoing,
       ]}
     >
-      {/* Session index badge */}
       <View style={[styles.sessionBadge, isOngoing && styles.sessionBadgeOngoing]}>
         <Text style={styles.sessionBadgeText}>{index + 1}</Text>
       </View>
 
-      {/* Events column */}
       <View style={styles.sessionEvents}>
-        {/* Check-in row */}
         {checkin && (
           <View style={styles.eventPill}>
             <View style={styles.checkinIconWrap}>
-              <Text style={styles.checkinIcon}>↑</Text>
+              <Briefcase size={16} color={Colors.success} />
             </View>
             <View style={styles.eventPillInfo}>
               <Text style={styles.eventPillLabel}>Check In</Text>
@@ -163,12 +161,12 @@ const AnimatedEventRow: React.FC<{
           </View>
         )}
 
-        {/* Connector line */}
         {checkin && (checkout || isOngoing) && (
           <View style={styles.connectorWrap}>
             <View style={[styles.connectorLine, isOngoing && styles.connectorLineDashed]} />
             {durationMin !== null && (
               <View style={styles.durationChip}>
+                <Clock size={10} color={Colors.primary} />
                 <Text style={styles.durationText}>{formatDuration(durationMin)}</Text>
               </View>
             )}
@@ -181,11 +179,10 @@ const AnimatedEventRow: React.FC<{
           </View>
         )}
 
-        {/* Check-out row */}
         {checkout && (
           <View style={styles.eventPill}>
             <View style={styles.checkoutIconWrap}>
-              <Text style={styles.checkoutIcon}>↓</Text>
+              <MapPin size={16} color={Colors.error} />
             </View>
             <View style={styles.eventPillInfo}>
               <Text style={styles.eventPillLabel}>Check Out</Text>
@@ -195,7 +192,6 @@ const AnimatedEventRow: React.FC<{
           </View>
         )}
 
-        {/* Orphan checkout */}
         {!checkin && checkout && (
           <View style={styles.orphanNote}>
             <Text style={styles.orphanText}>⚠ Missing check-in</Text>
@@ -203,7 +199,6 @@ const AnimatedEventRow: React.FC<{
         )}
       </View>
 
-      {/* Right status strip */}
       <View style={[
         styles.sessionStrip,
         isComplete && styles.sessionStripComplete,
@@ -224,7 +219,7 @@ const DaySection: React.FC<{
 
   const totalMins = sessions.reduce((acc, s) => acc + (s.durationMin ?? 0), 0);
   const totalCheckins = sessions.filter((s) => !!s.checkin).length;
-  const isFullDay = totalMins >= 480; // 8 hours
+  const isFullDay = totalMins >= 480;
 
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerSlide = useRef(new Animated.Value(-12)).current;
@@ -238,7 +233,6 @@ const DaySection: React.FC<{
 
   return (
     <View style={styles.daySection}>
-      {/* Day header */}
       <Animated.View style={[styles.dayHeader, { opacity: headerFade, transform: [{ translateX: headerSlide }] }]}>
         <View style={styles.dayHeaderLeft}>
           <View style={[styles.dayLabel, isToday && styles.dayLabelToday, isYesterday && styles.dayLabelYesterday]}>
@@ -263,17 +257,14 @@ const DaySection: React.FC<{
         </View>
       </Animated.View>
 
-      {/* Divider */}
       <View style={styles.dayDivider} />
 
-      {/* Session cards */}
       <View style={styles.sessionsWrap}>
         {sessions.map((session, i) => (
           <AnimatedEventRow
             key={`${group.date}-${i}`}
             session={session}
             index={i}
-            isLast={i === sessions.length - 1}
           />
         ))}
       </View>
@@ -281,52 +272,41 @@ const DaySection: React.FC<{
   );
 };
 
-// ─── Summary Header ───────────────────────────────────────────────────────────
+// ─── Summary Card ───────────────────────────────────────────────────────────
 
-const SummaryHeader: React.FC<{ totalEvents: number; uniqueDays: number }> = ({
+const SummaryCard: React.FC<{ totalEvents: number; uniqueDays: number }> = ({
   totalEvents,
   uniqueDays,
 }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-   const navigation = useNavigation();
-  React.useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-    ]).start();
-  }, []);
+  const totalHours = Math.floor(totalEvents / 2 * 8); // Approximate
 
   return (
-    <Animated.View style={[styles.summaryHeader, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-      <View style={styles.summaryTop}>
-        <View>
-      
-          <Text style={styles.summaryTitle}>Attendance</Text>
-          <Text style={styles.summarySubtitle}>Your work history</Text>
+    
+    <View style={styles.summaryCard}>
+      <View style={styles.summaryItem}>
+        <View style={[styles.summaryIconBox, { backgroundColor: '#EEF2FF' }]}>
+          <CalendarDays size={20} color="#4A7DE4" />
         </View>
-        <View style={styles.summaryIconWrap}>
-          <Text style={styles.summaryIcon}>📊</Text>
-        </View>
+        <Text style={styles.summaryNumber}>{uniqueDays}</Text>
+        <Text style={styles.summaryLabel}>Days</Text>
       </View>
-
-      <View style={styles.summaryStats}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{uniqueDays}</Text>
-          <Text style={styles.statLabel}>Days</Text>
+      <View style={styles.summaryDivider} />
+      <View style={styles.summaryItem}>
+        <View style={[styles.summaryIconBox, { backgroundColor: '#ECFDF5' }]}>
+          <TrendingUp size={20} color="#10B981" />
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{Math.floor(totalEvents / 2)}</Text>
-          <Text style={styles.statLabel}>Sessions</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{totalEvents}</Text>
-          <Text style={styles.statLabel}>Events</Text>
-        </View>
+        <Text style={styles.summaryNumber}>{Math.floor(totalEvents / 2)}</Text>
+        <Text style={styles.summaryLabel}>Sessions</Text>
       </View>
-    </Animated.View>
+      <View style={styles.summaryDivider} />
+      <View style={styles.summaryItem}>
+        <View style={[styles.summaryIconBox, { backgroundColor: '#FEF3C7' }]}>
+          <Clock size={20} color="#F59E0B" />
+        </View>
+        <Text style={styles.summaryNumber}>{totalEvents}</Text>
+        <Text style={styles.summaryLabel}>Events</Text>
+      </View>
+    </View>
   );
 };
 
@@ -365,11 +345,25 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const isMounted = useRef(true);
+  const navigation = useNavigation();
 
   const { history, setHistory } = useAttendanceStore();
+  const { user } = useAuthStore();
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   React.useEffect(() => {
+    isMounted.current = true;
     return () => { isMounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
   }, []);
 
   useFocusEffect(
@@ -406,7 +400,7 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const loadMore = async () => {
     if (!hasMore || loadingMore) return;
     setLoadingMore(true);
-    if(history.length === 0) return;
+    if (history.length === 0) return;
     await loadHistory(page + 1);
     setLoadingMore(false);
   };
@@ -414,8 +408,63 @@ export const AttendanceHistoryScreen: React.FC = () => {
   const grouped = groupByDate(history ?? []);
 
   return (
+    
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor="#EEF2FF" />
+
+      {/* 🎨 Gradient Header Background (same as Dashboard) */}
+      <View style={styles.headerBg}>
+        <View style={styles.headerCircle1} />
+        <View style={styles.headerCircle2} />
+      </View>
+
+      {/* ✨ MODERN COMPACT HEADER */}
+      <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            {/* <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <ArrowLeft size={20} color="#1E293B" />
+            </TouchableOpacity> */}
+            <View style={styles.greetingBox}>
+              <View style={styles.greetingRow}>
+                <View style={[styles.greetingIconBox, { backgroundColor: '#FEF3C7' }]}>
+                  <CalendarDays size={12} color="#F59E0B" strokeWidth={2.5} />
+                </View>
+                <Text style={[styles.greetingText, { color: '#F59E0B' }]}>
+                  Attendance
+                </Text>
+              </View>
+              <Text style={styles.userName} numberOfLines={1}>
+                {user?.fullName ?? 'User'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Date Row */}
+        <View style={styles.dateRow}>
+          <View style={styles.dateChip}>
+            <Clock size={12} color="#4A7DE4" />
+            <Text style={styles.dateText}>
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </Text>
+          </View>
+          <View style={styles.statusChip}>
+            <TrendingUp size={12} color="#059669" />
+            <Text style={styles.statusChipText}>
+              {grouped.length} Days
+            </Text>
+          </View>
+        </View>
+      </Animated.View>
 
       <FlatList
         data={grouped}
@@ -424,10 +473,12 @@ export const AttendanceHistoryScreen: React.FC = () => {
           <DaySection group={item} sectionIndex={index} />
         )}
         ListHeaderComponent={
-          <SummaryHeader
-            totalEvents={history?.length ?? 0}
-            uniqueDays={grouped.length}
-          />
+          history?.length > 0 ? (
+            <SummaryCard
+              totalEvents={history?.length ?? 0}
+              uniqueDays={grouped.length}
+            />
+          ) : null
         }
         ListEmptyComponent={<EmptyState />}
         ListFooterComponent={
@@ -455,8 +506,9 @@ export const AttendanceHistoryScreen: React.FC = () => {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
-      <View style={{height:50}}/>
+      <View style={{ height: 50 }} />
     </View>
+    
   );
 };
 
@@ -465,81 +517,179 @@ export const AttendanceHistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
+  },
+
+  // 🎨 Header Background (matches DashboardScreen)
+  headerBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    backgroundColor: '#EEF2FF',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+  },
+  headerCircle1: {
+    position: 'absolute',
+    top: -40,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#C7D2FE',
+    opacity: 0.4,
+  },
+  headerCircle2: {
+    position: 'absolute',
+    top: 20,
+    left: -15,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#A5B4FC',
+    opacity: 0.3,
+  },
+
+  // ✨ COMPACT MODERN HEADER
+  header: {
+    paddingTop: 10,
+    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  greetingBox: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  greetingIconBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: Colors.darkBlue,
+    letterSpacing: -0.3,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+    ...Shadows.sm,
+  },
+  dateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4A7DE4',
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 5,
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
 
   listContent: {
     paddingBottom: 48,
+    paddingHorizontal: Spacing.md,
   },
 
-  // ── Summary header ──────────────────────────────────────────────────────────
-  summaryHeader: {
-    marginHorizontal: 16,
-    marginTop: Platform.OS === 'android' ? 16 : 12,
-    marginBottom: 8,
-    backgroundColor: Colors.primary,
-    borderRadius: 24,
-    padding: 22,
-    ...Shadows.lg,
-  },
-  summaryTop: {
+  // ── Summary Card ──────────────────────────────────────────────────────────
+  summaryCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.md,
   },
-  summaryTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: Colors.white,
-    marginTop:15,
-    letterSpacing: -0.5,
-  },
-  summarySubtitle: {
-    fontSize: 13,
-    color: Colors.primaryLighter,
-    marginTop: 3,
-    fontWeight: '500',
-  },
-  summaryIconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  summaryItem: {
+    flex: 1,
     alignItems: 'center',
+  },
+  summaryIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  summaryIcon: { fontSize: 22 },
-  summaryStats: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 16,
-    padding: 14,
-  },
-  statBox: { flex: 1, alignItems: 'center' },
-  statNumber: {
-    fontSize: 28,
+  summaryNumber: {
+    fontSize: 22,
     fontWeight: '900',
-    color: Colors.white,
-    letterSpacing: -0.5,
+    color: '#1E293B',
   },
-  statLabel: {
+  summaryLabel: {
     fontSize: 11,
-    color: Colors.primaryLighter,
-    marginTop: 2,
+    color: '#94A3B8',
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginTop: 2,
   },
-  statDivider: {
+  summaryDivider: {
     width: 1,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    marginVertical: 4,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
   },
 
   // ── Day section ─────────────────────────────────────────────────────────────
   daySection: {
-    marginHorizontal: 16,
     marginTop: 22,
   },
   dayHeader: {
@@ -554,24 +704,24 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dayLabel: {
-    backgroundColor: Colors.gray100,
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  dayLabelToday: { backgroundColor: Colors.primary },
-  dayLabelYesterday: { backgroundColor: Colors.secondary },
+  dayLabelToday: { backgroundColor: '#4A7DE4' },
+  dayLabelYesterday: { backgroundColor: '#8B5CF6' },
   dayLabelText: {
     fontSize: 10,
     fontWeight: '800',
-    color: Colors.textMuted,
+    color: '#64748B',
     letterSpacing: 0.8,
   },
-  dayLabelTextHighlight: { color: Colors.white },
+  dayLabelTextHighlight: { color: '#fff' },
   dayFull: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: '#475569',
   },
   daySummary: {
     flexDirection: 'row',
@@ -579,26 +729,26 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   daySummaryChip: {
-    backgroundColor: Colors.gray100,
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 99,
   },
-  daySummaryChipGood: { backgroundColor: Colors.successLighter },
+  daySummaryChipGood: { backgroundColor: '#D1FAE5' },
   daySummaryText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.textMuted,
+    color: '#64748B',
   },
-  daySummaryTextGood: { color: Colors.success },
+  daySummaryTextGood: { color: '#059669' },
   daySessionCount: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: '#94A3B8',
     fontWeight: '500',
   },
   dayDivider: {
     height: 1.5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: '#E2E8F0',
     marginBottom: 12,
     borderRadius: 1,
   },
@@ -606,54 +756,54 @@ const styles = StyleSheet.create({
 
   // ── Session card ────────────────────────────────────────────────────────────
   sessionCard: {
-    backgroundColor: Colors.card,
+    backgroundColor: '#fff',
     borderRadius: 18,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'stretch',
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: Colors.borderLight,
+    borderColor: '#E2E8F0',
     ...Shadows.sm,
   },
   sessionCardComplete: {
-    borderColor: Colors.successLighter,
+    borderColor: '#D1FAE5',
   },
   sessionCardOngoing: {
-    borderColor: Colors.primaryLighter,
+    borderColor: '#DBEAFE',
   },
   sessionBadge: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: Colors.gray100,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
     marginTop: 2,
     flexShrink: 0,
   },
-  sessionBadgeOngoing: { backgroundColor: Colors.primaryLighter },
+  sessionBadgeOngoing: { backgroundColor: '#DBEAFE' },
   sessionBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: Colors.textSecondary,
+    color: '#475569',
   },
   sessionEvents: { flex: 1, gap: 0 },
   sessionStrip: {
     width: 4,
     borderRadius: 2,
     marginLeft: 12,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: '#E2E8F0',
   },
-  sessionStripComplete: { backgroundColor: Colors.success },
-  sessionStripOngoing: { backgroundColor: Colors.primary },
+  sessionStripComplete: { backgroundColor: '#10B981' },
+  sessionStripOngoing: { backgroundColor: '#4A7DE4' },
 
   // ── Event pill ──────────────────────────────────────────────────────────────
   eventPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 9,
@@ -663,7 +813,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: Colors.successLighter,
+    backgroundColor: '#D1FAE5',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -671,29 +821,19 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkinIcon: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.success,
-  },
-  checkoutIcon: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.error,
   },
   eventPillInfo: { flex: 1 },
   eventPillLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: '#1E293B',
   },
   eventPillTime: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: '#64748B',
     marginTop: 1,
     fontWeight: '500',
   },
@@ -715,27 +855,30 @@ const styles = StyleSheet.create({
   connectorLine: {
     width: 2,
     height: 20,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: '#E2E8F0',
     borderRadius: 1,
-    marginLeft: 14,  // align with icon center
+    marginLeft: 14,
   },
-  connectorLineDashed: { backgroundColor: Colors.primaryLighter },
+  connectorLineDashed: { backgroundColor: '#DBEAFE' },
   durationChip: {
-    backgroundColor: Colors.timerBg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 99,
+    gap: 4,
     marginLeft: 8,
   },
   durationText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.primary,
+    color: '#4A7DE4',
   },
   ongoingChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primaryLighter + '40',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 99,
@@ -746,25 +889,25 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#4A7DE4',
   },
   ongoingText: {
     fontSize: 10,
     fontWeight: '800',
-    color: Colors.primary,
+    color: '#4A7DE4',
     letterSpacing: 0.3,
   },
 
   // ── Orphan note ─────────────────────────────────────────────────────────────
   orphanNote: {
-    backgroundColor: Colors.warningBg,
+    backgroundColor: '#FEF3C7',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   orphanText: {
     fontSize: 12,
-    color: Colors.warning,
+    color: '#B45309',
     fontWeight: '600',
   },
 
@@ -778,12 +921,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: '#1E293B',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.textMuted,
+    color: '#64748B',
     textAlign: 'center',
     lineHeight: 21,
     fontWeight: '400',
@@ -803,11 +946,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#4A7DE4',
   },
   loadMoreText: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: '#94A3B8',
     fontWeight: '500',
   },
 });
