@@ -1,97 +1,148 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+<img width="1536" height="1024" alt="system_design_AttendSpehere (1)" src="https://github.com/user-attachments/assets/19109520-2d6f-4303-99a2-070f525aa051" />
+🚀 Employee Tracking & Attendance System (Backend)
 
-# Getting Started
+A high-performance backend system for real-time employee tracking and attendance management, built with a focus on accuracy, scalability, and real-world edge case handling.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+📌 Overview
 
-## Step 1: Start Metro
+This backend powers a workforce tracking system where:
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Employees check in/out using a mobile app
+Their location is tracked in real-time
+Attendance is automatically managed using geofencing
+Admins can monitor employees live from a web dashboard
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+The system is optimized using Redis caching, rate limiting, and smart database writes.
 
-```sh
-# Using npm
-npm start
+🏗️ Architecture
+Mobile App (React Native)
+        ↓ (30s ping API)
+Backend (Node.js + Express)
+        ↓
+Redis (Live State + Rate Limit + Pub/Sub)
+        ↓
+PostgreSQL (Persistent Storage)
+        ↓
+Socket.IO → Admin Panel (Real-time tracking)
+⚙️ Tech Stack
+Backend
+Node.js
+Express.js
+TypeScript
+Database
+PostgreSQL
+Sequelize ORM
+Caching & Performance
+Redis (in-memory store)
+Location state
+Rate limiting
+Pub/Sub messaging
+Real-Time
+Socket.IO
+Redis Pub/Sub
+Security
+JWT Authentication
+Device Binding (one user → one device)
+📍 Core Features
+✅ Attendance Management
+Manual check-in / check-out
+Automatic check-in when entering office
+Automatic check-out when leaving office
+Supports multiple check-in/check-out per day
+📡 Live Location Tracking
+Location ping every 30 seconds
+Stored in Redis (not DB) for performance
+Every 15 minutes → DB entry created
+📏 Smart Location Logging
 
-# OR using Yarn
-yarn start
-```
+Database entry created when:
 
-## Step 2: Build and run your app
+User crosses office boundary (100m)
+Distance thresholds crossed (500m, 1500m)
+Time interval reached (15 min)
+🧠 Geofencing Logic
+Office defined by latitude, longitude, radius
+Uses Haversine formula for accurate distance calculation
+⚡ Rate Limiting
+Redis-based rate limiter
+Prevents excessive API hits
+Ensures backend stability under heavy load
+📡 Real-Time Tracking (Admin Panel)
+Every 10 seconds, location updates are broadcast
+Uses Redis Pub/Sub + Socket.IO
+Admin can see live employee movement
+📶 Offline Support
+Mobile app stores location data in AsyncStorage
+Queue system maintains unsent data
+On reconnect → user triggers sync → backend processes all data
+🔁 Location Tracking Algorithm
+Tracking works only during working hours
+Office radius (e.g., 100m) defines "inside office"
+First manual check-in → DB entry created
+Every 30s → location ping stored in Redis
+Every 15 min → location saved in DB
+Distance-based triggers → DB entry (100m, 500m, 1500m)
+Auto check-in / check-out based on boundary crossing
+Multiple attendance sessions supported per day
+Working hours calculated from check-in → check-out
+Every 10s → real-time update sent to admin panel
+🗄️ Database Design
+Tables:
+users – Employee details
+attendance – Check-in / check-out events
+locations – Location logs
+devices – Device binding (security)
+office_settings – Office geofence config
+🔐 Security Features
+JWT-based authentication
+Device binding (prevents login from multiple devices)
+Rate limiting (prevents API abuse)
+Controlled attendance flow (checkin → checkout sequence)
+🚀 API Endpoints (Sample)
+POST   /auth/login
+POST   /attendance/checkin
+POST   /attendance/checkout
+POST   /location/ping
+GET    /location/history
+GET    /attendance/report
+⚡ Performance Optimizations
+Redis caching for live state
+Reduced DB writes using interval batching
+Distance-based filtering
+Pub/Sub for real-time updates
+Efficient pagination & indexing
+🛠️ Setup Instructions
+1. Clone the repo
+git clone https://github.com/your-repo/backend.git
+cd backend
+2. Install dependencies
+npm install
+3. Setup environment variables
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Create .env file:
 
-### Android
+PORT=5000
 
-```sh
-# Using npm
-npm run android
+DB_HOST=localhost
+DB_NAME=your_db
+DB_USER=postgres
+DB_PASS=password
 
-# OR using Yarn
-yarn android
-```
+JWT_SECRET=your_secret
 
-### iOS
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+4. Run project
+npm run dev
+📊 Key Highlights
+Real-time tracking with minimal DB load
+Handles high-frequency location updates efficiently
+Supports offline-first mobile behavior
+Production-ready rate limiting
+Clean and scalable monolithic architecture
+👨‍💻 Author
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Manoj Santra
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+MERN Stack & React Native Developer
+Focused on scalable backend systems and real-time applications
