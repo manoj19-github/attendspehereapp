@@ -95,8 +95,11 @@ class LocationService {
     Geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        const officeRadius = officeSettings?.OFFICE_RADIUS??0;
         const distance = calculateDistance(latitude, longitude, officeSettings?.OFFICE_LAT??0, officeSettings?.OFFICE_LNG??0);
-        const status = distance <= 100 ? 'in_office_area' : 'out_office_area';
+        const status = distance <= officeRadius ? 'in_office_area' : 'out_office_area';
+        console.log('distance: 101 ', distance);
+        console.log('status: 101', status);
         const isWorkingHours = isWithinWorkingHours();
 
         useLocationStore.getState().updateLocation(latitude, longitude, distance, status, isWorkingHours);

@@ -1,4 +1,4 @@
-import RNFS from 'react-native-fs';
+
 
 
 export const Colors = {
@@ -48,11 +48,3 @@ export function safeParse<T>(value: any, fallback: T): T {
 
 
 
-
-export const moveToCache = async (path: string) => {
-  const newPath = `${RNFS.CachesDirectoryPath}/resume_${Date.now()}.pdf`;
-
-  await RNFS.copyFile(path, newPath);
-
-  return `file://${newPath}`;
-};

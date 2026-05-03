@@ -1,5 +1,5 @@
 // src/views/AuthScreen.tsx
-import React, { useCallback, useState } from 'react';
+import React, { use, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -136,6 +136,8 @@ const handleAuth = useCallback(async () => {
   isLogin,
   navigation
 ]);
+
+
 
   return (
     <KeyboardAvoidingView
@@ -280,6 +282,10 @@ const handleAuth = useCallback(async () => {
             </View>
           )}
 
+
+{
+  isLogin ? (
+    
            <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={fetchDefaultCredentials}
@@ -296,6 +302,11 @@ const handleAuth = useCallback(async () => {
           
           </TouchableOpacity>
 
+
+  ):(
+    <></>
+  )
+}
           {/* Submit Button */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -324,6 +335,7 @@ const handleAuth = useCallback(async () => {
               setConfirmPassword('');
               setShowPassword(false);
               setShowConfirmPassword(false);
+              setEmail('');
             }}
             disabled={loading}
             activeOpacity={0.7}

@@ -8,12 +8,12 @@ import { useAuthStore } from '../store/useAuthStore';
 
 const StatusIndicator: React.FC = () => {
   const { status, distance ,isSameLocation,currentLocation} = useLocationStore();
-  console.log('currentLocation: ', currentLocation);
+  
   const OFFICE_RADIUS = useAuthStore((state) => state.officeSettings?.OFFICE_RADIUS);
   const officeLocation = useLocationStore((state) => state.officeLocation);
-  console.log('officeLocation: ', officeLocation);
-  console.log('status: ', status);
-  console.log('distance: ', distance);
+  
+  
+  
   const isWorkingHours = isWithinWorkingHours();
   const isInside = OFFICE_RADIUS  && distance <= OFFICE_RADIUS;
 
@@ -61,7 +61,7 @@ const StatusIndicator: React.FC = () => {
       style={[
         styles.container,
         isInside ? styles.insideContainer : styles.outsideContainer,
-        { transform: [{ scale: isInside ? pulseAnim : 1 }] },
+      
       ]}
     >
       <View style={styles.contentRow}>

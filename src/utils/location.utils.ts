@@ -157,7 +157,7 @@ private async sendLocationPing() {
         (pos) => resolve(pos),
         (err) => reject(err),
         {
-          enableHighAccuracy: false, // 🔥 keep false for stability
+          enableHighAccuracy: true, // 🔥 keep false for stability
           timeout: 15000,
           maximumAge: 10000,
         }
@@ -166,10 +166,12 @@ private async sendLocationPing() {
 
     const { latitude, longitude } = position.coords;
      const officeSettings = useAuthStore.getState().officeSettings;
+     const officeRadius = officeSettings?.OFFICE_RADIUS??0;
 
     // ✅ 4. Business logic
     const distance = calculateDistance(latitude, longitude, officeSettings?.OFFICE_LAT??0, officeSettings?.OFFICE_LNG??0);
-    const status = distance <= 100 ? 'in_office_area' : 'out_office_area';
+    const status = distance <= officeRadius? 'in_office_area': 'out_office_area';
+    console.log('status: 174', status);
     const isWorkingHours = isWithinWorkingHours();
 
     useLocationStore.getState().updateLocation(
@@ -283,7 +285,7 @@ export const getCurrentPosition = async () => {
           reject(error);
         },
         {
-          enableHighAccuracy: false, // 🔥 IMPORTANT change
+          enableHighAccuracy: true, // 🔥 IMPORTANT change
           timeout: 10000,
           maximumAge: 10000,
           forceRequestLocation: true,

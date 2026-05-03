@@ -70,6 +70,7 @@ export const DashboardScreen: React.FC = () => {
     () => !isCheckedIn && !firstCheckinDone && status === 'in_office_area',
     [isCheckedIn, firstCheckinDone, status]
   );
+  
 
   const showCheckoutButton = useMemo(() => isCheckedIn, [isCheckedIn]);
   const isUrgentCheckout = useMemo(() => isCheckedIn && !isWorkingHours, [isCheckedIn, isWorkingHours]);
@@ -79,9 +80,10 @@ export const DashboardScreen: React.FC = () => {
       (async () => {
         try {
           const position: any = await getCurrentPosition();
+          console.log('position: ', position);
           useLocationStore.getState().setCurrentLocation(position);
         } catch (error) {
-          console.log('location error', error);
+          
         }
       })();
       loadDashboardData();
@@ -104,7 +106,7 @@ export const DashboardScreen: React.FC = () => {
           : false;
       if (!isRunning) await backgroundLocationService.start();
     } catch (error) {
-      console.error('Background service error:', error);
+      
     }
   };
 
@@ -118,7 +120,7 @@ export const DashboardScreen: React.FC = () => {
         if (hasCheckin) useLocationStore.getState().setFirstCheckinDone(true);
       }
     } catch (error) {
-      console.error('Dashboard load error:', error);
+      
     } finally {
       setLoading(false);
     }
@@ -572,11 +574,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     marginVertical: Spacing.sm,
-    padding: Spacing.md,
+    padding: Spacing.xs,
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
     borderColor: Colors.warning + '15',
-    ...Shadows.md,
+    marginHorizontal: 14,
+
   },
   checkoutCardUrgent: {
     borderColor: Colors.error + '25',
