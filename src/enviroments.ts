@@ -1,5 +1,5 @@
 // src/constants/config.ts
-export const API_BASE_URL = 'http://localhost:5000/api';
+export const API_BASE_URL = 'https://manoj.ycsas.in/api';
 
 // export const OFFICE_LAT = 22.77930;
 // export const OFFICE_LNG =  88.25524;
