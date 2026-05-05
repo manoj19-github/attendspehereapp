@@ -14,6 +14,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   requestMultiple,
+  request,
   checkMultiple,
   PERMISSIONS,
   RESULTS,
@@ -40,31 +41,26 @@ export const PermissionScreen: React.FC = () => {
 
   const [checking, setChecking] = useState(true);
   const [requesting, setRequesting] = useState(false);
-  
 
   useFocusEffect(
     useCallback(() => {
       checkCurrentPermissions();
-       (async()=>{
-        try{
-        const token = await AsyncStorage.getItem(ASYNC_STORAGE_KEYS.AUTH_TOKEN);
-        console.log("token", token);
+      (async () => {
+        try {
+          const token = await AsyncStorage.getItem(ASYNC_STORAGE_KEYS.AUTH_TOKEN);
+          console.log('token', token);
+        } catch (error) {
+          console.log('error6666', error);
         }
-        catch(error){
-          console.log("error6666", error);
-        }
-    
-
-  })()
+      })();
     }, [])
-  )
-
+  );
 
   // ✅ Get permissions safely (Android version aware)
   const getPermissions = () => {
-    const perms = [
+    const perms: any[] = [
       PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-      PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION,
+      PERMISSIONS.ANDROID.ACCESS_COARSE_LOCATION,
     ];
 
     // Android 13+ only
@@ -86,24 +82,26 @@ export const PermissionScreen: React.FC = () => {
   // ✅ Check permissions
   const checkCurrentPermissions = async () => {
     try {
-      const results = await checkMultiple(getPermissions());
+      const permsToCheck = [
+        PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+        PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION,
+        ...(Platform.OS === 'android' && Platform.Version >= 33
+          ? ['android.permission.POST_NOTIFICATIONS' as any]
+          : []),
+      ];
+
+      const results = await checkMultiple(permsToCheck);
 
       const status: PermissionStatus = {
-        location:
-          results[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] === RESULTS.GRANTED,
+        location: results[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] === RESULTS.GRANTED,
         backgroundLocation:
-          results[PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION] ===
-          RESULTS.GRANTED,
+          results[PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION] === RESULTS.GRANTED,
         notification: getNotificationStatus(results),
       };
 
       setPermissions(status);
 
-      if (
-        status.location &&
-        status.backgroundLocation &&
-        status.notification
-      ) {
+      if (status.location && status.backgroundLocation && status.notification) {
         navigation.replace('Main');
       }
     } catch (error) {
@@ -113,67 +111,92 @@ export const PermissionScreen: React.FC = () => {
     }
   };
 
-  // ✅ Request permissions
- const requestAllPermissions = async () => {
-  setRequesting(true);
-
-  try {
+  // ✅ Step 1: Request fine location + notification
+  const requestForegroundPermissions = async (): Promise<boolean> => {
     const results = await requestMultiple(getPermissions());
-    console.log('results: ', results);
+    console.log('Foreground permission results:', results);
 
-    const fineLocation = results[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION];
-    const bgLocation = results[PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION];
+    const fineGranted =
+      results[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] === RESULTS.GRANTED;
+    const notifGranted = getNotificationStatus(results);
 
-    const status: PermissionStatus = {
-      location: fineLocation === RESULTS.GRANTED,
-      backgroundLocation: bgLocation === RESULTS.GRANTED,
-      notification: getNotificationStatus(results),
-    };
+    if (!fineGranted) {
+      const isBlocked =
+        results[PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION] === RESULTS.BLOCKED;
+      Alert.alert(
+        isBlocked ? 'Permission Blocked' : 'Permission Required',
+        isBlocked
+          ? 'Location permission was permanently denied. Please enable it in Settings.'
+          : 'Location permission is required for attendance tracking.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          isBlocked
+            ? { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            : { text: 'Try Again', onPress: requestAllPermissions },
+        ]
+      );
+      return false;
+    }
 
-    setPermissions(status);
+    setPermissions(prev => ({
+      ...prev,
+      location: fineGranted,
+      notification: notifGranted,
+    }));
 
-    // ✅ All granted → go to Main
-    if (status.location && status.backgroundLocation && status.notification) {
+    return true;
+  };
+
+  // ✅ Step 2: Request background location SEPARATELY (Android requirement)
+  const requestBackgroundPermission = async (): Promise<boolean> => {
+    const result = await request(PERMISSIONS.ANDROID.ACCESS_BACKGROUND_LOCATION);
+    console.log('Background location result:', result);
+
+    const granted = result === RESULTS.GRANTED;
+
+    if (!granted) {
+      const isBlocked = result === RESULTS.BLOCKED;
+      Alert.alert(
+        isBlocked ? 'Permission Blocked' : 'Background Location Required',
+        isBlocked
+          ? 'Background location was permanently denied. Please go to Settings → Permissions → Location → Allow all the time.'
+          : 'Please select "Allow all the time" for location to enable background tracking.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          isBlocked
+            ? { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            : { text: 'Try Again', onPress: requestAllPermissions },
+        ]
+      );
+      return false;
+    }
+
+    setPermissions(prev => ({ ...prev, backgroundLocation: true }));
+    return true;
+  };
+
+  // ✅ Main permission flow: foreground first → then background
+  const requestAllPermissions = async () => {
+    setRequesting(true);
+
+    try {
+      // Step 1: Fine location + notification
+      const foregroundGranted = await requestForegroundPermissions();
+      if (!foregroundGranted) return;
+
+      // Step 2: Background location (must be separate on Android)
+      const backgroundGranted = await requestBackgroundPermission();
+      if (!backgroundGranted) return;
+
+      // ✅ All granted → navigate
       navigation.replace('Main');
-      return;
+    } catch (error) {
+      console.error('Permission request error:', error);
+      Alert.alert('Error', 'Failed to request permissions');
+    } finally {
+      setRequesting(false);
     }
-
-    // 🚫 BLOCKED: Must open Settings manually
-    if (fineLocation === RESULTS.BLOCKED || bgLocation === RESULTS.BLOCKED) {
-      Alert.alert(
-        'Permission Blocked',
-        'Location permission was permanently denied. Please enable it in Settings.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Settings', 
-            onPress: () => Linking.openSettings() // Opens app settings
-          },
-        ]
-      );
-      return;
-    }
-
-    // ❌ DENIED (not blocked): Can ask again or show rationale
-    if (fineLocation === RESULTS.DENIED || bgLocation === RESULTS.DENIED) {
-      Alert.alert(
-        'Permissions Required',
-        'All permissions are needed for attendance tracking.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Try Again', onPress: requestAllPermissions },
-        ]
-      );
-      return;
-    }
-
-  } catch (error) {
-    console.error('Permission request error:', error);
-    Alert.alert('Error', 'Failed to request permissions');
-  } finally {
-    setRequesting(false);
-  }
-};
+  };
 
   // ✅ Skip (optional)
   const handleSkip = () => {
