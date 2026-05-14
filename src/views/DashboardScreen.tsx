@@ -80,7 +80,7 @@ export const DashboardScreen: React.FC = () => {
       (async () => {
         try {
           const position: any = await getCurrentPosition();
-          console.log('position: ', position);
+          
           useLocationStore.getState().setCurrentLocation(position);
         } catch (error) {
           

@@ -25,7 +25,7 @@ const CustomTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
   // Animate indicator position
   useEffect(() => {
     const activeIndex = state.routes.findIndex(
-      (r: any, i: number) => state.index === i && r.name !== 'QuickAction'
+      (r: any, i: number) => state.index === i 
     );
     const adjustedIndex = activeIndex >= 2 ? activeIndex - 1 : activeIndex;
     
@@ -45,15 +45,11 @@ const CustomTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
       Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
     ]).start();
 
-    if (routeName === 'QuickAction') {
-      navigation.navigate('QuickCheckin');
-      return;
-    }
 
     navigation.navigate(routeName);
   };
 
-  const regularTabs = state.routes.filter((r: any) => r.name !== 'QuickAction');
+  const regularTabs = state.routes;
 
   return (
     <View style={styles.container}>
